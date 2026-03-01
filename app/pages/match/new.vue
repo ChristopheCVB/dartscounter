@@ -55,14 +55,8 @@ function onSubmit(payload: {
   }
 
   settingsStore.update(settings)
-  playersStore.rememberMany(players)
-
-  const nameToId = new Map(
-    playersStore.recentPlayers.map(player => [player.name.trim().toLowerCase(), player.id])
-  )
-
-  const recentPlayerIds = players.map(player => nameToId.get(player.name.trim().toLowerCase()))
-  matchStore.startMatch(settings, players, recentPlayerIds)
+  const ensuredPlayers = playersStore.ensureMany(players)
+  matchStore.startMatch(settings, ensuredPlayers)
 
   if (matchStore.activeMatch) {
     router.push(`/match/${matchStore.activeMatch.id}`)

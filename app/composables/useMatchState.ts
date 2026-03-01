@@ -1,8 +1,8 @@
-import type { DartInput, Match, MatchPlayer, MatchSummary, Player, PlayerSummary, ThrowEvent, X01Settings } from '~~/shared/types/darts'
+import type { DartInput, Match, MatchPlayer, MatchSummary, Player, PlayerIdentity, PlayerSummary, ThrowEvent, X01Settings } from '~~/shared/types/darts'
 import { fallbackPlayerColor } from '../constants/playerColors'
 import { applyDart, isValidSegmentMultiplier } from './useScoringEngine'
 
-type PlayerSeed = string | Pick<Player, 'name' | 'color'>
+type PlayerSeed = PlayerIdentity
 
 function createStats() {
   return {
@@ -55,11 +55,14 @@ function computeSummary(match: Match): MatchSummary {
 
     return {
       playerId: player.id,
-      recentPlayerId: player.recentPlayerId,
       name: player.name,
+      color: player.color,
       legsWon: player.legsWon,
       average: round(average),
+      scoredPoints: player.stats.scoredPoints,
       firstNineAverage: round(firstNineAverage),
+      firstNinePoints: player.stats.firstNinePoints,
+      firstNineDarts: player.stats.firstNineDarts,
       checkoutAttempts: player.stats.checkoutAttempts,
       checkoutsMade: player.stats.checkoutsMade,
       checkoutPercentage: round(checkoutPercentage),
@@ -97,9 +100,9 @@ function resetForNextLeg(match: Match) {
 export function useMatchState() {
   const createMatch = (settings: X01Settings, seeds: PlayerSeed[]): Match => {
     const players: Player[] = seeds.map((seed, idx) => ({
-      id: crypto.randomUUID(),
-      name: typeof seed === 'string' ? seed : seed.name,
-      color: typeof seed === 'string' ? fallbackPlayerColor(idx) : seed.color || fallbackPlayerColor(idx)
+      id: seed.id,
+      name: seed.name,
+      color: seed.color || fallbackPlayerColor(idx)
     }))
 
     if (!players.length) {

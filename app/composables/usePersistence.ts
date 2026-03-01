@@ -6,6 +6,10 @@ export type StoredRecentPlayer = {
   color?: string
 }
 
+export type StoredSettings = X01Settings & {
+  soundEnabled?: boolean
+}
+
 const VERSION = 'v1'
 const ACTIVE_MATCH_KEY = `dartcounter:${VERSION}:active-match`
 const HISTORY_KEY = `dartcounter:${VERSION}:history`
@@ -54,8 +58,8 @@ export function usePersistence() {
   const saveHistory = (history: MatchSummary[]) => safeWrite(HISTORY_KEY, history)
   const loadHistory = () => safeRead<MatchSummary[]>(HISTORY_KEY, [])
 
-  const saveSettings = (settings: X01Settings) => safeWrite(SETTINGS_KEY, settings)
-  const loadSettings = (fallback: X01Settings) => safeRead<X01Settings>(SETTINGS_KEY, fallback)
+  const saveSettings = (settings: StoredSettings) => safeWrite(SETTINGS_KEY, settings)
+  const loadSettings = (fallback: StoredSettings) => safeRead<StoredSettings>(SETTINGS_KEY, fallback)
 
   const saveRecentPlayers = (players: StoredRecentPlayer[]) => safeWrite(RECENT_PLAYERS_KEY, players)
   const loadRecentPlayers = () => safeRead<StoredRecentPlayer[] | string[]>(RECENT_PLAYERS_KEY, [])

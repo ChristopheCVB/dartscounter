@@ -1,9 +1,11 @@
 <template>
   <UCard>
-    <div class="mb-3 flex items-center justify-between gap-2">
-      <h3 class="m-0 arcade-title text-sm">Current Turn</h3>
-      <UBadge color="neutral" variant="soft">{{ darts.length }}/3</UBadge>
-    </div>
+    <template #header>
+      <div class="flex items-center justify-between gap-2">
+        <h3 class="m-0 arcade-title text-sm">Current Turn</h3>
+        <UBadge color="neutral" variant="soft">{{ darts.length }}/3</UBadge>
+      </div>
+    </template>
 
     <div class="flex flex-wrap gap-2">
       <UBadge v-for="dart in darts" :key="dart.id" color="neutral" variant="soft" size="lg">

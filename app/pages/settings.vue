@@ -8,7 +8,9 @@
     />
 
     <UCard class="grid gap-5 arcade-glow arcade-reveal" :style="{ '--reveal-delay': '90ms' }">
-      <h2 class="m-0 arcade-title text-sm">Match defaults</h2>
+      <template #header>
+        <h2 class="m-0 arcade-title text-sm">Match defaults</h2>
+      </template>
 
       <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(12rem,14rem)_minmax(12rem,14rem)_auto] xl:items-end">
         <UFormField label="Default start score">
@@ -22,6 +24,7 @@
         <div class="flex flex-col gap-3 rounded-xl border border-default p-3 md:col-span-2 md:flex-row md:gap-6 xl:col-span-1">
           <UCheckbox v-model="local.doubleIn" label="Default double in" />
           <UCheckbox v-model="local.doubleOut" label="Default double out" />
+          <UCheckbox v-model="local.soundEnabled" label="Sound effects" />
         </div>
       </div>
 
@@ -29,18 +32,20 @@
     </UCard>
 
     <UCard class="grid gap-4 arcade-reveal" :style="{ '--reveal-delay': '150ms' }">
-      <div class="flex items-center justify-between gap-3">
-        <h2 class="m-0 arcade-title text-sm">Recent players</h2>
-        <UButton
-          v-if="playersStore.recentPlayers.length"
-          color="error"
-          variant="soft"
-          size="sm"
-          @click="clearRecentPlayers"
-        >
-          Clear all
-        </UButton>
-      </div>
+      <template #header>
+        <div class="flex items-center justify-between gap-3">
+          <h2 class="m-0 arcade-title text-sm">Recent players</h2>
+          <UButton
+            v-if="playersStore.recentPlayers.length"
+            color="error"
+            variant="soft"
+            size="sm"
+            @click="clearRecentPlayers"
+          >
+            Clear all
+          </UButton>
+        </div>
+      </template>
 
       <p v-if="!playersStore.recentPlayers.length" class="m-0 text-sm text-muted">
         No recent players yet. Names are saved after starting matches.
@@ -142,6 +147,7 @@
 
 <script setup lang="ts">
 import { fallbackPlayerColor, normalizePlayerColor } from '~/constants/playerColors'
+import { aggregatePlayerStats } from '~/composables/usePlayerStats'
 import { useHistoryStore } from '~/stores/history'
 import { usePlayersStore } from '~/stores/players'
 import { useSettingsStore } from '~/stores/settings'
@@ -152,6 +158,7 @@ type RecentPlayerRow = {
   color: string
   matches: number
   wins: number
+  dartsThrown: number
   average: string
   lastPlayed: string
   actions: string
@@ -173,59 +180,29 @@ const recentPlayerColumns = [
   { accessorKey: 'color', header: 'Color' },
   { accessorKey: 'matches', header: 'Matches' },
   { accessorKey: 'wins', header: 'Wins' },
+  { accessorKey: 'dartsThrown', header: 'Total Darts' },
   { accessorKey: 'average', header: '3-Dart Avg' },
   { accessorKey: 'lastPlayed', header: 'Last Played' },
   { accessorKey: 'actions', header: 'Actions' }
 ]
 
 const recentPlayerRows = computed<RecentPlayerRow[]>(() => {
+  const aggregated = aggregatePlayerStats(historyStore.entries, playersStore.recentPlayers)
+  const byId = new Map(aggregated.map(player => [player.id, player]))
+
   return playersStore.recentPlayers.map((player) => {
-    const name = player.name
-    const key = name.trim().toLowerCase()
-    const id = player.id
-    const playerEntries = historyStore.entries.filter((entry) => {
-      return entry.players.some((summaryPlayer) => {
-        if (summaryPlayer.recentPlayerId) {
-          return summaryPlayer.recentPlayerId === id
-        }
-        return summaryPlayer.name.trim().toLowerCase() === key
-      })
-    })
-
-    const matches = playerEntries.length
-    const wins = historyStore.entries.filter((entry) => {
-      const winner = entry.players.find(summaryPlayer => summaryPlayer.playerId === entry.winnerId)
-      if (!winner) {
-        return entry.winnerName.trim().toLowerCase() === key
-      }
-      if (winner.recentPlayerId) {
-        return winner.recentPlayerId === id
-      }
-      return winner.name.trim().toLowerCase() === key
-    }).length
-
-    const average = matches > 0
-      ? (playerEntries.reduce((total, entry) => {
-        const summaryPlayer = entry.players.find((p) => {
-          if (p.recentPlayerId) {
-            return p.recentPlayerId === id
-          }
-          return p.name.trim().toLowerCase() === key
-        })
-        return total + (summaryPlayer?.average || 0)
-      }, 0) / matches).toFixed(2)
-      : '-'
-
-    const latest = playerEntries.reduce((max, entry) => Math.max(max, entry.finishedAt), 0)
+    const stats = byId.get(player.id)
+    const matches = stats?.matches || 0
 
     return {
       id: player.id,
-      name,
+      name: player.name,
       color: player.color,
       matches,
-      wins,
-      average,
-      lastPlayed: latest ? new Date(latest).toLocaleDateString() : '-',
+      wins: stats?.wins || 0,
+      dartsThrown: stats?.dartsThrown || 0,
+      average: matches > 0 ? stats!.average.toFixed(2) : '-',
+      lastPlayed: stats?.lastPlayed ? new Date(stats.lastPlayed).toLocaleDateString() : '-',
       actions: ''
     }
   })
@@ -235,7 +212,8 @@ const local = reactive({
   startScore: settingsStore.settings.startScore,
   doubleIn: settingsStore.settings.doubleIn,
   doubleOut: settingsStore.settings.doubleOut,
-  legsTarget: settingsStore.settings.legsTarget
+  legsTarget: settingsStore.settings.legsTarget,
+  soundEnabled: settingsStore.soundEnabled
 })
 
 function save() {
@@ -245,9 +223,10 @@ function save() {
     doubleOut: local.doubleOut,
     legsTarget: local.legsTarget
   })
+  settingsStore.updateSoundEnabled(local.soundEnabled)
   toast.add({
     title: 'Settings saved',
-    description: 'Default match settings updated.',
+    description: 'Default match settings and sound preference updated.',
     color: 'success'
   })
 }
@@ -288,7 +267,6 @@ function saveEdit() {
     return
   }
 
-  historyStore.linkRecentPlayerByName(playerId, original.name)
   playersStore.renameRecentPlayer(playerId, next)
   toast.add({
     title: 'Player renamed',

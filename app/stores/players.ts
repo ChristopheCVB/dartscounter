@@ -1,14 +1,16 @@
 import type { StoredRecentPlayer } from '~/composables/usePersistence'
+import type { PlayerIdentity } from '~~/shared/types/darts'
 import { normalizePlayerColor } from '~/constants/playerColors'
 import { usePersistence } from '~/composables/usePersistence'
 
-export type RecentPlayer = {
-  id: string
-  name: string
-  color: string
-}
+export type RecentPlayer = PlayerIdentity
 
 type RecentPlayerSeed = string | {
+  name: string
+  color?: string
+}
+
+type NormalizedRecentSeed = {
   name: string
   color?: string
 }
@@ -24,7 +26,25 @@ function nameKey(name: string): string {
 function mergeRecent(existing: RecentPlayer[], incoming: RecentPlayerSeed[]): RecentPlayer[] {
   const result: RecentPlayer[] = []
   const seen = new Set<string>()
+  const existingByKey = new Map<string, RecentPlayer>()
   let nextColorIndex = 0
+
+  for (const player of existing) {
+    const normalized = normalizeName(player.name)
+    if (!normalized) {
+      continue
+    }
+
+    const key = nameKey(normalized)
+    if (existingByKey.has(key)) {
+      continue
+    }
+
+    existingByKey.set(key, {
+      ...player,
+      name: normalized
+    })
+  }
 
   const pushUnique = (player: RecentPlayer) => {
     const normalized = normalizeName(player.name)
@@ -57,11 +77,16 @@ function mergeRecent(existing: RecentPlayer[], incoming: RecentPlayerSeed[]): Re
       return
     }
 
+    const existingPlayer = existingByKey.get(key)
+
     seen.add(key)
     result.push({
-      id: crypto.randomUUID(),
+      id: existingPlayer?.id || crypto.randomUUID(),
       name: normalized,
-      color: normalizePlayerColor(typeof seed === 'string' ? undefined : seed.color, nextColorIndex)
+      color: normalizePlayerColor(
+        typeof seed === 'string' ? existingPlayer?.color : (seed.color || existingPlayer?.color),
+        nextColorIndex
+      )
     })
     nextColorIndex += 1
   }
@@ -104,6 +129,27 @@ function normalizeStoredPlayers(payload: StoredRecentPlayer[] | string[]): Recen
   })
 }
 
+function normalizeSeeds(players: RecentPlayerSeed[]): NormalizedRecentSeed[] {
+  return players
+    .map((seed) => {
+      if (typeof seed === 'string') {
+        const name = normalizeName(seed)
+        return name ? { name } : null
+      }
+
+      const name = normalizeName(seed.name)
+      if (!name) {
+        return null
+      }
+
+      return {
+        name,
+        color: seed.color
+      }
+    })
+    .filter((seed): seed is NormalizedRecentSeed => Boolean(seed))
+}
+
 export const usePlayersStore = defineStore('players', () => {
   const recentPlayers = ref<RecentPlayer[]>([])
   const { loadRecentPlayers, saveRecentPlayers } = usePersistence()
@@ -118,24 +164,7 @@ export const usePlayersStore = defineStore('players', () => {
   }
 
   function rememberMany(players: RecentPlayerSeed[]) {
-    const normalized = players
-      .map((seed) => {
-        if (typeof seed === 'string') {
-          const name = normalizeName(seed)
-          return name ? { name } : null
-        }
-
-        const name = normalizeName(seed.name)
-        if (!name) {
-          return null
-        }
-
-        return {
-          name,
-          color: seed.color
-        }
-      })
-      .filter((seed): seed is { name: string, color?: string } => Boolean(seed))
+    const normalized = normalizeSeeds(players)
 
     if (!normalized.length) {
       return
@@ -143,6 +172,23 @@ export const usePlayersStore = defineStore('players', () => {
 
     recentPlayers.value = mergeRecent(recentPlayers.value, normalized)
     persist()
+  }
+
+  function ensureMany(players: RecentPlayerSeed[]): RecentPlayer[] {
+    const normalized = normalizeSeeds(players)
+
+    if (!normalized.length) {
+      return []
+    }
+
+    recentPlayers.value = mergeRecent(recentPlayers.value, normalized)
+    persist()
+
+    const byName = new Map(recentPlayers.value.map(player => [nameKey(player.name), player]))
+
+    return normalized
+      .map(player => byName.get(nameKey(player.name)))
+      .filter((player): player is RecentPlayer => Boolean(player))
   }
 
   function addRecentPlayer(name: string, color?: string) {
@@ -234,6 +280,7 @@ export const usePlayersStore = defineStore('players', () => {
     recentNames,
     load,
     rememberMany,
+    ensureMany,
     addRecentPlayer,
     renameRecentPlayer,
     updateRecentPlayerColor,

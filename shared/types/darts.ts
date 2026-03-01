@@ -29,12 +29,13 @@ export interface X01Settings {
   legsTarget: number
 }
 
-export interface Player {
+export interface PlayerIdentity {
   id: string
   name: string
   color: string
-  recentPlayerId?: string
 }
+
+export interface Player extends PlayerIdentity {}
 
 export interface PlayerStats {
   dartsThrown: number
@@ -73,11 +74,14 @@ export interface Match {
 
 export interface PlayerSummary {
   playerId: string
-  recentPlayerId?: string
   name: string
+  color: string
   legsWon: number
   average: number
+  scoredPoints: number
   firstNineAverage: number
+  firstNinePoints: number
+  firstNineDarts: number
   checkoutAttempts: number
   checkoutsMade: number
   checkoutPercentage: number

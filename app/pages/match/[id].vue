@@ -18,8 +18,11 @@
     </div>
 
     <div class="grid gap-4 arcade-reveal" :style="{ '--reveal-delay': '90ms' }">
-      <UCard class="grid gap-4 arcade-glow">
-        <h3 class="m-0 arcade-title text-sm">Match Status</h3>
+      <UCard class="arcade-glow">
+        <template #header>
+          <h3 class="m-0 arcade-title text-sm">Match Status</h3>
+        </template>
+
         <UCard>
           <p class="m-0 mb-2 text-muted">All Players</p>
           <div class="grid gap-[0.45rem]">
@@ -100,7 +103,10 @@
           </UCard>
 
           <UCard>
-            <h3 class="m-0 mb-3">Positions</h3>
+            <template #header>
+              <h3 class="m-0">Positions</h3>
+            </template>
+
             <div class="grid gap-2">
               <div
                 v-for="(row, idx) in recapRows"
@@ -133,8 +139,11 @@
 
   <section v-else class="grid gap-4">
     <UCard class="grid gap-4 arcade-glow">
-    <h2 class="m-0 arcade-title text-base">No active match</h2>
-    <UButton to="/match/new" class="w-fit">Start a match</UButton>
+      <template #header>
+        <h2 class="m-0 arcade-title text-base">No active match</h2>
+      </template>
+
+      <UButton to="/match/new" class="w-fit">Start a match</UButton>
     </UCard>
   </section>
 </template>

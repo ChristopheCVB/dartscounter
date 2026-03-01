@@ -1,9 +1,12 @@
 <template>
   <UCard class="grid gap-4">
-    <div class="flex flex-wrap items-center justify-between gap-2">
-      <h2 class="m-0">Winner: {{ summary.winnerName }}</h2>
-      <UBadge color="warning" variant="soft" size="lg">{{ summary.mode }}</UBadge>
-    </div>
+    <template #header>
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <h2 class="m-0">Winner: {{ summary.winnerName }}</h2>
+        <UBadge color="warning" variant="soft" size="lg">{{ summary.mode }}</UBadge>
+      </div>
+    </template>
+
     <p class="m-0 text-muted">Duration {{ durationText }}</p>
 
     <div class="overflow-auto">

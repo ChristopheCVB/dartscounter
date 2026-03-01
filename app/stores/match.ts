@@ -49,25 +49,11 @@ export const useMatchStore = defineStore('match', () => {
 
   function startMatch(
     settings: X01Settings,
-    players: Array<{ name: string, color: string }>,
-    recentPlayerIds: Array<string | undefined> = []
+    players: Array<{ id: string, name: string, color: string }>
   ) {
-    const randomizedPlayers = shufflePlayers(players.map((player, idx) => ({
-      ...player,
-      recentPlayerId: recentPlayerIds[idx]
-    })))
+    const randomizedPlayers = shufflePlayers(players)
 
-    activeMatch.value = createMatch(
-      settings,
-      randomizedPlayers.map(player => ({ name: player.name, color: player.color }))
-    )
-
-    if (activeMatch.value) {
-      activeMatch.value.players = activeMatch.value.players.map((player, idx) => ({
-        ...player,
-        recentPlayerId: randomizedPlayers[idx]?.recentPlayerId
-      }))
-    }
+    activeMatch.value = createMatch(settings, randomizedPlayers)
 
     undoStack.value = []
     selectedMultiplier.value = 1

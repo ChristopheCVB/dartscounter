@@ -2,7 +2,7 @@
   <UCard :style="cardStyle" class="overflow-hidden transition duration-200">
     <div class="grid gap-1">
       <div class="flex items-center justify-between gap-2">
-        <p class="m-0 flex items-center gap-1.5 text-sm" :style="{ color: player.color }">
+        <p class="m-0 flex items-center gap-1.5 text-sm" :style="{ color: playerNameColor }">
           <span class="player-dot" :style="{ background: player.color }" />
           {{ player.name }}
         </p>
@@ -31,6 +31,8 @@ const cardStyle = computed(() => ({
     ? `linear-gradient(150deg, color-mix(in srgb, ${props.player.color} 20%, transparent), color-mix(in srgb, var(--ui-bg) 88%, transparent))`
     : 'color-mix(in srgb, var(--ui-bg) 92%, transparent)'
 }))
+
+const playerNameColor = computed(() => `color-mix(in srgb, ${props.player.color} 72%, white)`)
 </script>
 
 <style scoped>

@@ -1,7 +1,7 @@
 <template>
   <div class="target-wrap">
     <svg
-      viewBox="0 0 420 420"
+      viewBox="-16 -16 452 452"
       class="target-board"
       role="img"
       aria-label="Interactive darts target"
@@ -32,8 +32,8 @@
         />
 
         <text
-          :x="labelPoint(sector.middle, 200).x"
-          :y="labelPoint(sector.middle, 200).y"
+          :x="labelPoint(sector.middle, 214).x"
+          :y="labelPoint(sector.middle, 214).y"
           class="segment-label"
         >
           {{ sector.value }}
@@ -212,7 +212,11 @@ function doubleTripleClass(index: number) {
 
 .segment-label {
   fill: #f4f7fb;
-  font-size: 12px;
+  stroke: rgba(0, 0, 0, 0.78);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  paint-order: stroke fill;
+  font-size: 24px;
   text-anchor: middle;
   dominant-baseline: middle;
   font-weight: 700;

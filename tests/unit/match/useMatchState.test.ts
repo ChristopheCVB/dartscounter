@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { useMatchState } from '../../../app/composables/useMatchState'
-import type { X01Settings } from '../../../shared/types/darts'
+import type { PlayerIdentity, X01Settings } from '../../../shared/types/darts'
 
 const settings: X01Settings = {
   startScore: 501,
@@ -9,10 +9,15 @@ const settings: X01Settings = {
   legsTarget: 1
 }
 
+const players: PlayerIdentity[] = [
+  { id: 'alice', name: 'Alice', color: '#f05a28' },
+  { id: 'bob', name: 'Bob', color: '#24a8ff' }
+]
+
 describe('useMatchState integration flow', () => {
   it('auto-advances turn after three darts', () => {
     const { createMatch, recordDart } = useMatchState()
-    const match = createMatch(settings, ['Alice', 'Bob'])
+    const match = createMatch(settings, players)
 
     recordDart(match, { segment: 20, multiplier: 1 })
     recordDart(match, { segment: 20, multiplier: 1 })
@@ -25,7 +30,7 @@ describe('useMatchState integration flow', () => {
 
   it('counts checkout attempts once at start of a finishable turn', () => {
     const { createMatch, recordDart } = useMatchState()
-    const match = createMatch(settings, ['Alice', 'Bob'])
+    const match = createMatch(settings, players)
     const player = match.players[0]
 
     player.score = 100
@@ -40,7 +45,7 @@ describe('useMatchState integration flow', () => {
 
   it('reverts score and advances on bust', () => {
     const { createMatch, recordDart } = useMatchState()
-    const match = createMatch(settings, ['Alice', 'Bob'])
+    const match = createMatch(settings, players)
     const player = match.players[0]
 
     player.score = 40
@@ -55,7 +60,7 @@ describe('useMatchState integration flow', () => {
 
   it('finishes match and returns summary on valid checkout', () => {
     const { createMatch, recordDart } = useMatchState()
-    const match = createMatch(settings, ['Alice', 'Bob'])
+    const match = createMatch(settings, players)
     const player = match.players[0]
 
     player.score = 40

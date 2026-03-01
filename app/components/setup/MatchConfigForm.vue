@@ -114,7 +114,19 @@ const schema = z.object({
       name: z.string().trim().min(1).max(24),
       color: z.string().regex(/^#[0-9a-fA-F]{6}$/)
     })
-  ).min(2)
+  ).min(2).refine((players) => {
+    const seen = new Set<string>()
+    for (const player of players) {
+      const key = player.name.trim().toLowerCase()
+      if (seen.has(key)) {
+        return false
+      }
+      seen.add(key)
+    }
+    return true
+  }, {
+    message: 'Player names must be unique.'
+  })
 })
 
 const form = reactive({
