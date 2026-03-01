@@ -36,15 +36,18 @@
               size="xs"
               color="neutral"
               variant="soft"
-              @click="addRememberedPlayer(savedPlayer.name)"
+              @click="addRememberedPlayer(savedPlayer)"
             >
-              {{ savedPlayer.name }}
+              <span class="inline-flex items-center gap-1.5">
+                <span class="recent-player-dot" :style="{ background: savedPlayer.color }" />
+                {{ savedPlayer.name }}
+              </span>
             </UButton>
           </div>
         </div>
 
         <div class="player-grid">
-          <div v-for="(name, idx) in form.players" :key="idx" class="player-tile">
+          <div v-for="(player, idx) in form.players" :key="idx" class="player-tile">
             <div class="mb-2 flex items-center justify-between gap-2">
               <p class="m-0 text-xs uppercase tracking-[0.08em] text-muted">Player {{ idx + 1 }}</p>
               <UButton
@@ -59,12 +62,23 @@
             </div>
 
             <UInput
-              v-model="form.players[idx]"
+              v-model="form.players[idx]!.name"
               type="text"
               maxlength="24"
               :placeholder="`Player ${idx + 1}`"
               @update:model-value="markDirty"
             />
+
+            <div class="mt-3 flex items-center gap-2">
+              <span class="text-xs text-muted">Color</span>
+              <input
+                v-model="form.players[idx]!.color"
+                type="color"
+                class="color-picker"
+                :aria-label="`Pick color for ${player.name || `Player ${idx + 1}`}`"
+                @input="markDirty"
+              >
+            </div>
           </div>
         </div>
       </div>
@@ -81,6 +95,8 @@
 
 <script setup lang="ts">
 import { z } from 'zod'
+import type { RecentPlayer } from '~/stores/players'
+import { fallbackPlayerColor, normalizePlayerColor } from '~/constants/playerColors'
 import { usePlayersStore } from '~/stores/players'
 import { useSettingsStore } from '~/stores/settings'
 
@@ -93,7 +109,12 @@ const schema = z.object({
   doubleIn: z.boolean(),
   doubleOut: z.boolean(),
   legsTarget: z.number().int().min(1).max(11),
-  players: z.array(z.string().trim().min(1).max(24)).min(2)
+  players: z.array(
+    z.object({
+      name: z.string().trim().min(1).max(24),
+      color: z.string().regex(/^#[0-9a-fA-F]{6}$/)
+    })
+  ).min(2)
 })
 
 const form = reactive({
@@ -101,7 +122,10 @@ const form = reactive({
   doubleIn: settingsStore.settings.doubleIn,
   doubleOut: settingsStore.settings.doubleOut,
   legsTarget: settingsStore.settings.legsTarget,
-  players: ['Player 1', 'Player 2']
+  players: [
+    { name: 'Player 1', color: fallbackPlayerColor(0) },
+    { name: 'Player 2', color: fallbackPlayerColor(1) }
+  ]
 })
 
 const isDirty = ref(false)
@@ -109,7 +133,7 @@ const isDirty = ref(false)
 const selectedPlayerNames = computed(() => {
   return new Set(
     form.players
-      .map(name => name.trim().toLowerCase())
+      .map(player => player.name.trim().toLowerCase())
       .filter(Boolean)
   )
 })
@@ -125,16 +149,20 @@ const emit = defineEmits<{
     doubleIn: boolean
     doubleOut: boolean
     legsTarget: number
-    players: string[]
+    players: Array<{ name: string, color: string }>
   }]
 }>()
 
 function addPlayer() {
   markDirty()
-  form.players.push(`Player ${form.players.length + 1}`)
+  form.players.push({
+    name: `Player ${form.players.length + 1}`,
+    color: fallbackPlayerColor(form.players.length)
+  })
 }
 
-function addRememberedPlayer(name: string) {
+function addRememberedPlayer(player: RecentPlayer) {
+  const name = player.name
   if (selectedPlayerNames.value.has(name.toLowerCase())) {
     return
   }
@@ -142,16 +170,20 @@ function addRememberedPlayer(name: string) {
   markDirty()
 
   const placeholderIndex = form.players.findIndex((playerName, idx) => {
-    const trimmed = playerName.trim()
+    const trimmed = playerName.name.trim()
     return !trimmed || trimmed === `Player ${idx + 1}`
   })
 
   if (placeholderIndex >= 0) {
-    form.players[placeholderIndex] = name
+    form.players[placeholderIndex]!.name = name
+    form.players[placeholderIndex]!.color = normalizePlayerColor(player.color, placeholderIndex)
     return
   }
 
-  form.players.push(name)
+  form.players.push({
+    name,
+    color: normalizePlayerColor(player.color, form.players.length)
+  })
 }
 
 function removePlayerAt(index: number) {
@@ -171,7 +203,10 @@ function submitForm() {
   error.value = ''
   const parsed = schema.safeParse({
     ...form,
-    players: form.players.map(name => name.trim())
+    players: form.players.map(player => ({
+      name: player.name.trim(),
+      color: player.color
+    }))
   })
 
   if (!parsed.success) {
@@ -224,5 +259,22 @@ watch(() => settingsStore.settings, (settings) => {
   border-radius: 0.9rem;
   padding: 0.65rem;
   background: color-mix(in srgb, var(--ui-bg) 90%, transparent);
+}
+
+.recent-player-dot {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--ui-bg) 65%, transparent);
+}
+
+.color-picker {
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--ui-border) 65%, transparent);
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
 }
 </style>

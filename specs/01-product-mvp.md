@@ -14,7 +14,7 @@ Last verified against code: 2026-03-01
 ## 2) MVP Scope
 
 - Create match -> configure players/settings -> play throws -> end match -> show summary.
-- Support 2-6 local players.
+- Support 2 to unlimited local players.
 - Rules supported:
   - Start score: 301 or 501
   - Optional double-in

@@ -2,7 +2,10 @@
   <UCard :style="cardStyle" class="overflow-hidden transition duration-200">
     <div class="grid gap-1">
       <div class="flex items-center justify-between gap-2">
-        <p class="m-0 text-sm text-muted">{{ player.name }}</p>
+        <p class="m-0 flex items-center gap-1.5 text-sm" :style="{ color: player.color }">
+          <span class="player-dot" :style="{ background: player.color }" />
+          {{ player.name }}
+        </p>
         <UBadge :color="active ? 'warning' : 'neutral'" variant="soft" size="sm">{{ active ? 'Throwing' : 'Waiting' }}</UBadge>
       </div>
       <p class="mx-0 my-[0.1rem] text-[2rem] font-extrabold leading-none">{{ player.score }}</p>
@@ -29,3 +32,12 @@ const cardStyle = computed(() => ({
     : 'color-mix(in srgb, var(--ui-bg) 92%, transparent)'
 }))
 </script>
+
+<style scoped>
+.player-dot {
+  display: inline-block;
+  width: 0.56rem;
+  height: 0.56rem;
+  border-radius: 999px;
+}
+</style>

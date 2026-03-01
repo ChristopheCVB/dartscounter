@@ -5,7 +5,8 @@ const SOUND_FILES = {
   double: '/sounds/double.mp3',
   triple: '/sounds/triple.mp3',
   bull: '/sounds/bull.mp3',
-  miss: '/sounds/miss.mp3'
+  miss: '/sounds/miss.mp3',
+  confetti: '/sounds/confetti.mp3'
 } as const
 
 export function useThrowSounds() {
@@ -59,7 +60,19 @@ export function useThrowSounds() {
     }
   }
 
+  const playConfetti = () => {
+    const player = ensurePlayer('confetti')
+    if (!player) {
+      return
+    }
+
+    player.currentTime = 0
+    player.volume = 0.5
+    void player.play().catch(() => {})
+  }
+
   return {
-    playForThrow
+    playForThrow,
+    playConfetti
   }
 }

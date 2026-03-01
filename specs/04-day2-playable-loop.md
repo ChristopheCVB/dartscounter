@@ -17,7 +17,7 @@ Current Day 2 outcomes:
 
 Implemented in `app/components/setup/MatchConfigForm.vue` with:
 
-- players (2-6)
+- players (2 to unlimited)
 - start score (301/501)
 - double-in toggle
 - double-out toggle

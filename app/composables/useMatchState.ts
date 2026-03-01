@@ -1,7 +1,8 @@
 import type { DartInput, Match, MatchPlayer, MatchSummary, Player, PlayerSummary, ThrowEvent, X01Settings } from '~~/shared/types/darts'
+import { fallbackPlayerColor } from '../constants/playerColors'
 import { applyDart, isValidSegmentMultiplier } from './useScoringEngine'
 
-const PLAYER_COLORS = ['#f05a28', '#24a8ff', '#30c981', '#ffd166', '#ff6f91', '#7f8cff']
+type PlayerSeed = string | Pick<Player, 'name' | 'color'>
 
 function createStats() {
   return {
@@ -18,7 +19,7 @@ function createStats() {
 function buildPlayers(players: Player[], settings: X01Settings): MatchPlayer[] {
   return players.map((player, idx) => ({
     ...player,
-    color: player.color || PLAYER_COLORS[idx % PLAYER_COLORS.length],
+    color: player.color || fallbackPlayerColor(idx),
     score: settings.startScore,
     legsWon: 0,
     hasOpened: !settings.doubleIn,
@@ -28,6 +29,14 @@ function buildPlayers(players: Player[], settings: X01Settings): MatchPlayer[] {
 
 function round(value: number): number {
   return Math.round(value * 100) / 100
+}
+
+function getPlayerAt(match: Match, index: number): MatchPlayer {
+  const player = match.players[index]
+  if (!player) {
+    throw new Error('Match has no players configured.')
+  }
+  return player
 }
 
 function computeSummary(match: Match): MatchSummary {
@@ -59,7 +68,7 @@ function computeSummary(match: Match): MatchSummary {
     }
   })
 
-  const winner = match.players.find(player => player.id === match.winnerId) || match.players[0]
+  const winner = match.players.find(player => player.id === match.winnerId) || getPlayerAt(match, 0)
 
   return {
     id: crypto.randomUUID(),
@@ -80,19 +89,29 @@ function resetForNextLeg(match: Match) {
   }
   match.currentTurnDarts = []
   match.currentTurnIndex = 0
-  match.currentTurnStartScore = match.players[match.currentPlayerIndex].score
-  match.currentTurnOpenedAtStart = match.players[match.currentPlayerIndex].hasOpened
+  const player = getPlayerAt(match, match.currentPlayerIndex)
+  match.currentTurnStartScore = player.score
+  match.currentTurnOpenedAtStart = player.hasOpened
 }
 
 export function useMatchState() {
-  const createMatch = (settings: X01Settings, names: string[]): Match => {
-    const players: Player[] = names.map((name, idx) => ({
+  const createMatch = (settings: X01Settings, seeds: PlayerSeed[]): Match => {
+    const players: Player[] = seeds.map((seed, idx) => ({
       id: crypto.randomUUID(),
-      name,
-      color: PLAYER_COLORS[idx % PLAYER_COLORS.length]
+      name: typeof seed === 'string' ? seed : seed.name,
+      color: typeof seed === 'string' ? fallbackPlayerColor(idx) : seed.color || fallbackPlayerColor(idx)
     }))
 
+    if (!players.length) {
+      throw new Error('Cannot create match without players.')
+    }
+
     const builtPlayers = buildPlayers(players, settings)
+    const firstPlayer = builtPlayers[0]
+
+    if (!firstPlayer) {
+      throw new Error('Cannot create match without players.')
+    }
 
     return {
       id: crypto.randomUUID(),
@@ -103,8 +122,8 @@ export function useMatchState() {
       finishedAt: null,
       currentPlayerIndex: 0,
       currentTurnIndex: 0,
-      currentTurnStartScore: builtPlayers[0].score,
-      currentTurnOpenedAtStart: builtPlayers[0].hasOpened,
+      currentTurnStartScore: firstPlayer.score,
+      currentTurnOpenedAtStart: firstPlayer.hasOpened,
       currentTurnDarts: [],
       throws: [],
       winnerId: null
@@ -116,7 +135,7 @@ export function useMatchState() {
       return { updated: match, summary: null }
     }
 
-    const player = match.players[match.currentPlayerIndex]
+    const player = getPlayerAt(match, match.currentPlayerIndex)
     const isFirstDartOfTurn = match.currentTurnDarts.length === 0
     const turnStartScore = match.currentTurnStartScore
     const turnStartOpened = match.currentTurnOpenedAtStart
@@ -194,7 +213,7 @@ export function useMatchState() {
     match.currentTurnIndex += 1
     match.currentTurnDarts = []
 
-    const player = match.players[match.currentPlayerIndex]
+    const player = getPlayerAt(match, match.currentPlayerIndex)
     match.currentTurnStartScore = player.score
     match.currentTurnOpenedAtStart = player.hasOpened
   }

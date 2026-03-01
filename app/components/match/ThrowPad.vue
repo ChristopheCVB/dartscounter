@@ -26,7 +26,7 @@
     </div>
 
     <div v-else>
-      <MatchInteractiveTarget @hit="handleTargetHit" />
+      <MatchInteractiveTarget :player-color="playerColor" @hit="handleTargetHit" />
     </div>
 
     <div class="grid items-end gap-3 sm:grid-cols-[1fr_auto_auto]">
@@ -48,6 +48,7 @@ import MatchInteractiveTarget from '~/components/match/InteractiveTarget.vue'
 const props = defineProps<{
   multiplier: Multiplier
   numericBuffer: string
+  playerColor: string
 }>()
 
 const emit = defineEmits<{

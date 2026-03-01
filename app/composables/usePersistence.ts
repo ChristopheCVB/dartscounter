@@ -3,6 +3,7 @@ import type { Match, MatchSummary, X01Settings } from '~~/shared/types/darts'
 export type StoredRecentPlayer = {
   id: string
   name: string
+  color?: string
 }
 
 const VERSION = 'v1'

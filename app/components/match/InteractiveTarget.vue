@@ -1,6 +1,12 @@
 <template>
   <div class="target-wrap">
-    <svg viewBox="0 0 420 420" class="target-board" role="img" aria-label="Interactive darts target">
+    <svg
+      viewBox="0 0 420 420"
+      class="target-board"
+      role="img"
+      aria-label="Interactive darts target"
+      :style="{ '--target-hover-color': hoverColor }"
+    >
       <circle cx="210" cy="210" r="196" class="board-bg" />
 
       <g v-for="(sector, index) in sectors" :key="`single-outer-${sector.value}`">
@@ -54,6 +60,12 @@ import type { Multiplier, Segment } from '~~/shared/types/darts'
 const emit = defineEmits<{
   hit: [payload: { segment: Segment, multiplier: Multiplier }]
 }>()
+
+const props = defineProps<{
+  playerColor?: string
+}>()
+
+const hoverColor = computed(() => props.playerColor || '#ffd166')
 
 const order: Segment[] = [20, 1, 18, 4, 13, 6, 10, 15, 2, 17, 3, 19, 7, 16, 8, 11, 14, 9, 12, 5]
 const startAngle = -99
@@ -142,8 +154,10 @@ function doubleTripleClass(index: number) {
 .ring-bull-outer,
 .ring-bull-inner {
   cursor: pointer;
-  transition: filter 120ms ease, stroke 120ms ease, stroke-width 120ms ease;
+  transition: filter 120ms ease, stroke 120ms ease, stroke-width 120ms ease, transform 120ms ease;
   stroke-linejoin: round;
+  transform-box: fill-box;
+  transform-origin: center;
 }
 
 .ring-single-black {
@@ -177,21 +191,23 @@ function doubleTripleClass(index: number) {
 .ring-accent-green:hover,
 .ring-bull-outer:hover,
 .ring-bull-inner:hover {
-  filter: brightness(1.22);
+  fill: color-mix(in srgb, var(--target-hover-color) 30%, transparent);
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--target-hover-color) 55%, transparent));
+  transform: scale(1.018);
 }
 
 .ring-single-black:hover,
 .ring-single-white:hover {
-  stroke: #ffd166;
-  stroke-width: 2.4;
+  stroke: var(--target-hover-color);
+  stroke-width: 2.6;
 }
 
 .ring-accent-red:hover,
 .ring-accent-green:hover,
 .ring-bull-outer:hover,
 .ring-bull-inner:hover {
-  stroke: #ffd166;
-  stroke-width: 1.6;
+  stroke: var(--target-hover-color);
+  stroke-width: 2.1;
 }
 
 .segment-label {

@@ -54,6 +54,12 @@
           maxlength="24"
           @keydown.enter.prevent="addRecentPlayer"
         />
+        <input
+          v-model="newRecentColor"
+          type="color"
+          class="h-9 w-12 cursor-pointer rounded-md border border-default bg-transparent p-1"
+          aria-label="Pick player color"
+        >
         <UButton color="neutral" variant="soft" @click="addRecentPlayer">
           Add
         </UButton>
@@ -76,6 +82,18 @@
             @keydown.esc.prevent="cancelEdit"
           />
           <span v-else>{{ row.original.name }}</span>
+        </template>
+
+        <template #color-cell="{ row }">
+          <div class="flex items-center">
+            <input
+              type="color"
+              class="color-picker"
+              :value="row.original.color"
+              :aria-label="`Pick custom color for ${row.original.name}`"
+              @input="updatePlayerColor(row.original.id, row.original.name, ($event.target as HTMLInputElement).value)"
+            >
+          </div>
         </template>
 
         <template #actions-cell="{ row }">
@@ -123,6 +141,7 @@
 </template>
 
 <script setup lang="ts">
+import { fallbackPlayerColor, normalizePlayerColor } from '~/constants/playerColors'
 import { useHistoryStore } from '~/stores/history'
 import { usePlayersStore } from '~/stores/players'
 import { useSettingsStore } from '~/stores/settings'
@@ -130,6 +149,7 @@ import { useSettingsStore } from '~/stores/settings'
 type RecentPlayerRow = {
   id: string
   name: string
+  color: string
   matches: number
   wins: number
   average: string
@@ -143,11 +163,14 @@ const settingsStore = useSettingsStore()
 const toast = useToast()
 const startScoreItems = [301, 501]
 const newRecentName = ref('')
+const newRecentColor = ref(fallbackPlayerColor(0))
 const editingPlayerId = ref('')
 const editingName = ref('')
+const colorUpdateTimeouts = new Map<string, ReturnType<typeof setTimeout>>()
 
 const recentPlayerColumns = [
   { accessorKey: 'name', header: 'Player' },
+  { accessorKey: 'color', header: 'Color' },
   { accessorKey: 'matches', header: 'Matches' },
   { accessorKey: 'wins', header: 'Wins' },
   { accessorKey: 'average', header: '3-Dart Avg' },
@@ -198,6 +221,7 @@ const recentPlayerRows = computed<RecentPlayerRow[]>(() => {
     return {
       id: player.id,
       name,
+      color: player.color,
       matches,
       wins,
       average,
@@ -234,11 +258,13 @@ function addRecentPlayer() {
     return
   }
 
-  playersStore.addRecentPlayer(next)
+  const color = normalizePlayerColor(newRecentColor.value, playersStore.recentPlayers.length)
+  playersStore.addRecentPlayer(next, color)
   newRecentName.value = ''
+  newRecentColor.value = fallbackPlayerColor(playersStore.recentPlayers.length)
   toast.add({
     title: 'Player added',
-    description: `${next} is now available in recent players.`,
+    description: `${next} is now available in recent players with ${color}.`,
     color: 'success'
   })
 }
@@ -285,6 +311,37 @@ function removeRecentPlayer(playerId: string, playerName: string) {
   })
 }
 
+function updatePlayerColor(playerId: string, playerName: string, color: string) {
+  if (!playerId) {
+    return
+  }
+
+  const normalized = normalizePlayerColor(color)
+
+  const existingTimer = colorUpdateTimeouts.get(playerId)
+  if (existingTimer) {
+    clearTimeout(existingTimer)
+  }
+
+  const timeoutId = setTimeout(() => {
+    const existingPlayer = playersStore.recentPlayers.find(player => player.id === playerId)
+    if (!existingPlayer || existingPlayer.color === normalized) {
+      colorUpdateTimeouts.delete(playerId)
+      return
+    }
+
+    playersStore.updateRecentPlayerColor(playerId, normalized)
+    toast.add({
+      title: 'Color updated',
+      description: `${playerName} now uses ${normalized}.`,
+      color: 'success'
+    })
+    colorUpdateTimeouts.delete(playerId)
+  }, 320)
+
+  colorUpdateTimeouts.set(playerId, timeoutId)
+}
+
 function clearRecentPlayers() {
   if (!playersStore.recentPlayers.length) {
     return
@@ -297,4 +354,23 @@ function clearRecentPlayers() {
     color: 'error'
   })
 }
+
+onBeforeUnmount(() => {
+  for (const timeoutId of colorUpdateTimeouts.values()) {
+    clearTimeout(timeoutId)
+  }
+  colorUpdateTimeouts.clear()
+})
 </script>
+
+<style scoped>
+.color-picker {
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--ui-border) 65%, transparent);
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+}
+</style>

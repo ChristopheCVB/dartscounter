@@ -5,6 +5,7 @@
       <MatchThrowPad
         :multiplier="matchStore.selectedMultiplier"
         :numeric-buffer="matchStore.numericBuffer"
+        :player-color="currentPlayerColor"
         @multiplier="matchStore.setMultiplier"
         @segment="matchStore.addSegment"
         @bull="matchStore.addBull"
@@ -27,14 +28,21 @@
               :key="player.id"
               class="score-row"
               :class="{ active: idx === match.currentPlayerIndex }"
-              :style="{ borderColor: idx === match.currentPlayerIndex ? player.color : 'rgba(255,255,255,0.12)' }"
+              :style="{
+                borderColor: idx === match.currentPlayerIndex
+                  ? player.color
+                  : `color-mix(in srgb, ${player.color} 42%, var(--ui-border))`,
+                background: idx === match.currentPlayerIndex
+                  ? `color-mix(in srgb, ${player.color} 12%, var(--ui-bg))`
+                  : 'color-mix(in srgb, var(--ui-bg) 90%, transparent)'
+              }"
             >
-              <span>{{ player.name }}</span>
+              <span class="flex items-center gap-1.5"><span class="score-row-dot" :style="{ background: player.color }" />{{ player.name }}</span>
               <strong>{{ player.score }}</strong>
             </div>
           </div>
         </UCard>
-        <p class="m-0">Player: <strong>{{ currentPlayerName }}</strong></p>
+        <p class="m-0">Player: <strong :style="{ color: currentPlayerColor }">{{ currentPlayerName }}</strong></p>
         <p class="m-0 text-muted">Turn {{ match.currentTurnIndex + 1 }} · Darts {{ match.currentTurnDarts.length }}/3</p>
         <p v-if="matchStore.transitionLocked" class="m-0 text-muted">Auto-advancing turn...</p>
 
@@ -136,6 +144,7 @@ import MatchScoreboard from '~/components/match/Scoreboard.vue'
 import MatchStats from '~/components/stats/MatchStats.vue'
 import MatchThrowPad from '~/components/match/ThrowPad.vue'
 import MatchTurnTimeline from '~/components/match/TurnTimeline.vue'
+import { useThrowSounds } from '~/composables/useThrowSounds'
 import { useHistoryStore } from '~/stores/history'
 import { useMatchStore } from '~/stores/match'
 
@@ -143,6 +152,7 @@ const route = useRoute()
 const router = useRouter()
 const matchStore = useMatchStore()
 const historyStore = useHistoryStore()
+const { playConfetti } = useThrowSounds()
 
 const showShortcuts = ref(false)
 const showRecap = ref(false)
@@ -160,6 +170,7 @@ const match = computed(() => {
 })
 
 const currentPlayerName = computed(() => matchStore.currentPlayer?.name || '-')
+const currentPlayerColor = computed(() => matchStore.currentPlayer?.color || 'var(--ui-text)')
 const lastSummary = computed(() => historyStore.entries.find(entry => entry.matchId === matchStore.activeMatch?.id) || null)
 const winnerColor = computed(() => {
   if (!match.value?.winnerId) {
@@ -220,6 +231,7 @@ watch(
     }
 
     celebratedMatchId.value = id
+    playConfetti()
 
     const { default: confetti } = await import('canvas-confetti')
     const palette = [winnerColor.value, '#ffffff', '#ffd166']
@@ -343,8 +355,11 @@ function exitMatch() {
   background: color-mix(in srgb, var(--ui-bg) 90%, transparent);
 }
 
-.score-row.active {
-  background: color-mix(in srgb, var(--ui-primary) 12%, var(--ui-bg));
+.score-row-dot {
+  width: 0.54rem;
+  height: 0.54rem;
+  border-radius: 999px;
+  display: inline-block;
 }
 
 </style>

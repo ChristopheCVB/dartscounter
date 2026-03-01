@@ -46,7 +46,7 @@ function onSubmit(payload: {
   doubleIn: boolean
   doubleOut: boolean
   legsTarget: number
-  players: string[]
+  players: Array<{ name: string, color: string }>
 }) {
   const { players, ...settings } = payload
 
@@ -61,7 +61,7 @@ function onSubmit(payload: {
     playersStore.recentPlayers.map(player => [player.name.trim().toLowerCase(), player.id])
   )
 
-  const recentPlayerIds = players.map(name => nameToId.get(name.trim().toLowerCase()))
+  const recentPlayerIds = players.map(player => nameToId.get(player.name.trim().toLowerCase()))
   matchStore.startMatch(settings, players, recentPlayerIds)
 
   if (matchStore.activeMatch) {

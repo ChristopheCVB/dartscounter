@@ -1,11 +1,16 @@
 import type { StoredRecentPlayer } from '~/composables/usePersistence'
+import { normalizePlayerColor } from '~/constants/playerColors'
 import { usePersistence } from '~/composables/usePersistence'
-
-const MAX_PLAYERS = 20
 
 export type RecentPlayer = {
   id: string
   name: string
+  color: string
+}
+
+type RecentPlayerSeed = string | {
+  name: string
+  color?: string
 }
 
 function normalizeName(name: string): string {
@@ -16,9 +21,10 @@ function nameKey(name: string): string {
   return normalizeName(name).toLowerCase()
 }
 
-function mergeRecent(existing: RecentPlayer[], incoming: string[]): RecentPlayer[] {
+function mergeRecent(existing: RecentPlayer[], incoming: RecentPlayerSeed[]): RecentPlayer[] {
   const result: RecentPlayer[] = []
   const seen = new Set<string>()
+  let nextColorIndex = 0
 
   const pushUnique = (player: RecentPlayer) => {
     const normalized = normalizeName(player.name)
@@ -34,12 +40,14 @@ function mergeRecent(existing: RecentPlayer[], incoming: string[]): RecentPlayer
     seen.add(key)
     result.push({
       id: player.id,
-      name: normalized
+      name: normalized,
+      color: normalizePlayerColor(player.color, nextColorIndex)
     })
+    nextColorIndex += 1
   }
 
-  const pushUniqueName = (name: string) => {
-    const normalized = normalizeName(name)
+  const pushUniqueName = (seed: RecentPlayerSeed) => {
+    const normalized = normalizeName(typeof seed === 'string' ? seed : seed.name)
     if (!normalized) {
       return
     }
@@ -52,19 +60,21 @@ function mergeRecent(existing: RecentPlayer[], incoming: string[]): RecentPlayer
     seen.add(key)
     result.push({
       id: crypto.randomUUID(),
-      name: normalized
+      name: normalized,
+      color: normalizePlayerColor(typeof seed === 'string' ? undefined : seed.color, nextColorIndex)
     })
+    nextColorIndex += 1
   }
 
-  for (const name of incoming) {
-    pushUniqueName(name)
+  for (const seed of incoming) {
+    pushUniqueName(seed)
   }
 
   for (const player of existing) {
     pushUnique(player)
   }
 
-  return result.slice(0, MAX_PLAYERS)
+  return result
 }
 
 function normalizeStoredPlayers(payload: StoredRecentPlayer[] | string[]): RecentPlayer[] {
@@ -72,21 +82,24 @@ function normalizeStoredPlayers(payload: StoredRecentPlayer[] | string[]): Recen
     if (typeof entry === 'string') {
       return {
         id: crypto.randomUUID(),
-        name: entry
+        name: entry,
+        color: undefined
       }
     }
 
     return {
       id: entry.id || crypto.randomUUID(),
-      name: entry.name
+      name: entry.name,
+      color: entry.color
     }
   })
 
-  return mergeRecent([], mapped.map(player => player.name)).map((player, idx) => {
+  return mergeRecent([], mapped).map((player, idx) => {
     const fromPayload = mapped.find(source => nameKey(source.name) === nameKey(player.name))
     return {
       id: fromPayload?.id || player.id || `${idx}-${player.name}`,
-      name: player.name
+      name: player.name,
+      color: normalizePlayerColor(fromPayload?.color, idx)
     }
   })
 }
@@ -96,16 +109,33 @@ export const usePlayersStore = defineStore('players', () => {
   const { loadRecentPlayers, saveRecentPlayers } = usePersistence()
 
   function persist() {
-    saveRecentPlayers(recentPlayers.value.map(player => ({ id: player.id, name: player.name })))
+    saveRecentPlayers(recentPlayers.value.map(player => ({ id: player.id, name: player.name, color: player.color })))
   }
 
   function load() {
-    recentPlayers.value = normalizeStoredPlayers(loadRecentPlayers()).slice(0, MAX_PLAYERS)
+    recentPlayers.value = normalizeStoredPlayers(loadRecentPlayers())
     persist()
   }
 
-  function rememberMany(names: string[]) {
-    const normalized = names.map(normalizeName).filter(Boolean)
+  function rememberMany(players: RecentPlayerSeed[]) {
+    const normalized = players
+      .map((seed) => {
+        if (typeof seed === 'string') {
+          const name = normalizeName(seed)
+          return name ? { name } : null
+        }
+
+        const name = normalizeName(seed.name)
+        if (!name) {
+          return null
+        }
+
+        return {
+          name,
+          color: seed.color
+        }
+      })
+      .filter((seed): seed is { name: string, color?: string } => Boolean(seed))
 
     if (!normalized.length) {
       return
@@ -115,13 +145,13 @@ export const usePlayersStore = defineStore('players', () => {
     persist()
   }
 
-  function addRecentPlayer(name: string) {
+  function addRecentPlayer(name: string, color?: string) {
     const normalized = normalizeName(name)
     if (!normalized) {
       return
     }
 
-    recentPlayers.value = mergeRecent(recentPlayers.value, [normalized])
+    recentPlayers.value = mergeRecent(recentPlayers.value, [{ name: normalized, color }])
     persist()
   }
 
@@ -155,7 +185,31 @@ export const usePlayersStore = defineStore('players', () => {
       deduped.push(player)
     }
 
-    recentPlayers.value = deduped.slice(0, MAX_PLAYERS)
+    recentPlayers.value = deduped
+    persist()
+  }
+
+  function updateRecentPlayerColor(playerId: string, color: string) {
+    if (!playerId) {
+      return
+    }
+
+    const currentIndex = recentPlayers.value.findIndex(player => player.id === playerId)
+    if (currentIndex < 0) {
+      return
+    }
+
+    recentPlayers.value = recentPlayers.value.map((player, idx) => {
+      if (player.id !== playerId) {
+        return player
+      }
+
+      return {
+        ...player,
+        color: normalizePlayerColor(color, idx)
+      }
+    })
+
     persist()
   }
 
@@ -182,6 +236,7 @@ export const usePlayersStore = defineStore('players', () => {
     rememberMany,
     addRecentPlayer,
     renameRecentPlayer,
+    updateRecentPlayerColor,
     removeRecentPlayer,
     clearRecentPlayers
   }

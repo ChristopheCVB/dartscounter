@@ -15,7 +15,13 @@ function shufflePlayers<T>(players: T[]): T[] {
   for (let idx = shuffled.length - 1; idx > 0; idx -= 1) {
     const swapIndex = Math.floor(Math.random() * (idx + 1))
     const current = shuffled[idx]
-    shuffled[idx] = shuffled[swapIndex]
+    const swapped = shuffled[swapIndex]
+
+    if (current === undefined || swapped === undefined) {
+      continue
+    }
+
+    shuffled[idx] = swapped
     shuffled[swapIndex] = current
   }
 
@@ -41,15 +47,19 @@ export const useMatchStore = defineStore('match', () => {
     return activeMatch.value.players[activeMatch.value.currentPlayerIndex]
   })
 
-  function startMatch(settings: X01Settings, playerNames: string[], recentPlayerIds: Array<string | undefined> = []) {
-    const randomizedPlayers = shufflePlayers(playerNames.map((name, idx) => ({
-      name,
+  function startMatch(
+    settings: X01Settings,
+    players: Array<{ name: string, color: string }>,
+    recentPlayerIds: Array<string | undefined> = []
+  ) {
+    const randomizedPlayers = shufflePlayers(players.map((player, idx) => ({
+      ...player,
       recentPlayerId: recentPlayerIds[idx]
     })))
 
     activeMatch.value = createMatch(
       settings,
-      randomizedPlayers.map((player) => player.name)
+      randomizedPlayers.map(player => ({ name: player.name, color: player.color }))
     )
 
     if (activeMatch.value) {
