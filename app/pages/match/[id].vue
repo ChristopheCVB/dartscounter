@@ -1,8 +1,7 @@
 <template>
-  <section v-if="match" class="grid items-start gap-4 lg:grid-cols-[2fr_1fr]">
-    <div class="grid gap-4">
+  <section v-if="match" class="grid items-start gap-5 lg:grid-cols-[2fr_1fr]">
+    <div class="grid gap-4 arcade-reveal">
       <MatchScoreboard :players="match.players" :active-index="match.currentPlayerIndex" />
-      <MatchTurnTimeline :darts="match.currentTurnDarts" />
       <MatchThrowPad
         :multiplier="matchStore.selectedMultiplier"
         :numeric-buffer="matchStore.numericBuffer"
@@ -17,47 +16,59 @@
       />
     </div>
 
-    <UCard class="grid gap-4">
-      <h3 class="m-0">Match Status</h3>
-      <UCard>
-        <p class="m-0 mb-2 text-muted">All Players</p>
-        <div class="grid gap-[0.45rem]">
-          <div
-            v-for="(player, idx) in match.players"
-            :key="player.id"
-            class="score-row"
-            :class="{ active: idx === match.currentPlayerIndex }"
-            :style="{ borderColor: idx === match.currentPlayerIndex ? player.color : 'rgba(255,255,255,0.12)' }"
-          >
-            <span>{{ player.name }}</span>
-            <strong>{{ player.score }}</strong>
+    <div class="grid gap-4 arcade-reveal" :style="{ '--reveal-delay': '90ms' }">
+      <UCard class="grid gap-4 arcade-glow">
+        <h3 class="m-0 arcade-title text-sm">Match Status</h3>
+        <UCard>
+          <p class="m-0 mb-2 text-muted">All Players</p>
+          <div class="grid gap-[0.45rem]">
+            <div
+              v-for="(player, idx) in match.players"
+              :key="player.id"
+              class="score-row"
+              :class="{ active: idx === match.currentPlayerIndex }"
+              :style="{ borderColor: idx === match.currentPlayerIndex ? player.color : 'rgba(255,255,255,0.12)' }"
+            >
+              <span>{{ player.name }}</span>
+              <strong>{{ player.score }}</strong>
+            </div>
           </div>
+        </UCard>
+        <p class="m-0">Player: <strong>{{ currentPlayerName }}</strong></p>
+        <p class="m-0 text-muted">Turn {{ match.currentTurnIndex + 1 }} · Darts {{ match.currentTurnDarts.length }}/3</p>
+        <p v-if="matchStore.transitionLocked" class="m-0 text-muted">Auto-advancing turn...</p>
+
+        <div class="grid gap-2">
+          <UButton v-if="lastSummary" color="primary" variant="soft" @click="showRecap = true">Show Match Recap</UButton>
+          <UButton color="neutral" variant="soft" @click="showShortcuts = true">Keyboard shortcuts (?)</UButton>
+          <UButton color="error" variant="soft" @click="exitMatch">End Match</UButton>
         </div>
       </UCard>
-      <p class="m-0">Player: <strong>{{ currentPlayerName }}</strong></p>
-      <p class="m-0 text-muted">Turn {{ match.currentTurnIndex + 1 }} · Darts {{ match.currentTurnDarts.length }}/3</p>
-      <p v-if="matchStore.transitionLocked" class="m-0 text-muted">Auto-advancing turn...</p>
-      <UButton v-if="lastSummary" color="primary" variant="soft" @click="showRecap = true">Show Match Recap</UButton>
-      <UButton color="error" variant="soft" @click="exitMatch">End Match</UButton>
-      <UButton color="neutral" variant="soft" @click="showShortcuts = true">Keyboard shortcuts (?)</UButton>
-    </UCard>
 
-    <div v-if="lastSummary" class="lg:col-span-2">
+      <MatchTurnTimeline
+        :darts="match.currentTurnDarts"
+        :score="match.players[match.currentPlayerIndex]?.score || 0"
+        :has-opened="match.players[match.currentPlayerIndex]?.hasOpened ?? true"
+        :settings="match.settings"
+      />
+    </div>
+
+    <div v-if="lastSummary" class="lg:col-span-2 arcade-reveal" :style="{ '--reveal-delay': '150ms' }">
       <MatchStats :summary="lastSummary" />
     </div>
 
     <UModal v-model:open="showShortcuts" title="Keyboard shortcuts">
       <template #body>
-        <div class="grid gap-1">
-          <p><strong>S / D / T</strong> Set multiplier</p>
-          <p><strong>B / Shift+B</strong> Bull 25 / 50</p>
-          <p><strong>M</strong> Miss</p>
-          <p><strong>U</strong> Undo</p>
-          <p><strong>0-9</strong> Numeric buffer (0-60)</p>
-          <p><strong>Backspace</strong> Remove digit</p>
-          <p><strong>Enter</strong> Submit numeric throw</p>
-          <p><strong>?</strong> Toggle shortcuts modal</p>
-          <p><strong>Esc</strong> Close modal/clear buffer</p>
+        <div class="grid gap-2 text-sm">
+          <p class="flex items-center justify-between gap-4"><span>Set multiplier</span> <span class="flex items-center gap-1"><UKbd value="s" /><UKbd value="d" /><UKbd value="t" /></span></p>
+          <p class="flex items-center justify-between gap-4"><span>Bull 25 / 50</span> <span class="flex items-center gap-1"><UKbd value="b" /><UKbd>Shift+B</UKbd></span></p>
+          <p class="flex items-center justify-between gap-4"><span>Miss</span> <UKbd value="m" /></p>
+          <p class="flex items-center justify-between gap-4"><span>Undo</span> <UKbd value="u" /></p>
+          <p class="flex items-center justify-between gap-4"><span>Numeric buffer (0-60)</span> <UKbd>0-9</UKbd></p>
+          <p class="flex items-center justify-between gap-4"><span>Remove digit</span> <UKbd value="backspace" /></p>
+          <p class="flex items-center justify-between gap-4"><span>Submit numeric throw</span> <UKbd value="enter" /></p>
+          <p class="flex items-center justify-between gap-4"><span>Toggle shortcuts modal</span> <UKbd>?</UKbd></p>
+          <p class="flex items-center justify-between gap-4"><span>Close modal / clear buffer</span> <UKbd value="esc" /></p>
         </div>
       </template>
     </UModal>
@@ -113,8 +124,8 @@
   </section>
 
   <section v-else class="grid gap-4">
-    <UCard class="grid gap-4">
-    <h2 class="m-0">No active match</h2>
+    <UCard class="grid gap-4 arcade-glow">
+    <h2 class="m-0 arcade-title text-base">No active match</h2>
     <UButton to="/match/new" class="w-fit">Start a match</UButton>
     </UCard>
   </section>
@@ -326,13 +337,14 @@ function exitMatch() {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.45rem 0.6rem;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 0.55rem 0.65rem;
+  border: 1px solid color-mix(in srgb, var(--ui-border) 70%, transparent);
   border-radius: 10px;
+  background: color-mix(in srgb, var(--ui-bg) 90%, transparent);
 }
 
 .score-row.active {
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--ui-primary) 12%, var(--ui-bg));
 }
 
 </style>

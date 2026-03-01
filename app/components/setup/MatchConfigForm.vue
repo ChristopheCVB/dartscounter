@@ -1,31 +1,33 @@
 <template>
-  <UCard>
+  <UCard class="arcade-glow">
     <template #header>
-      <h2 style="margin: 0;">New X01 Match</h2>
+      <h2 class="m-0 arcade-title text-base">New X01 Match</h2>
     </template>
 
-    <form class="grid gap-4" @submit.prevent="submitForm">
+    <form class="grid gap-5" @submit.prevent="submitForm">
       <div class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(190px,1fr))]">
-        <div>
-          <label class="mb-1.5 block text-sm text-muted">Start score</label>
+        <UFormField label="Start score">
           <USelect v-model="form.startScore" :items="startScoreItems" @update:model-value="markDirty" />
-        </div>
+        </UFormField>
 
-        <div>
-          <label class="mb-1.5 block text-sm text-muted">Legs to win</label>
-          <UInput v-model.number="form.legsTarget" type="number" min="1" max="11" @update:model-value="markDirty" />
-        </div>
+        <UFormField label="Legs to win">
+          <UInputNumber v-model="form.legsTarget" :min="1" :max="11" @update:model-value="markDirty" />
+        </UFormField>
       </div>
 
-      <div class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(190px,1fr))]">
+      <div class="grid gap-4 rounded-xl border border-default p-4 sm:grid-cols-2">
         <UCheckbox v-model="form.doubleIn" label="Double in" @update:model-value="markDirty" />
         <UCheckbox v-model="form.doubleOut" label="Double out" @update:model-value="markDirty" />
       </div>
 
       <div class="grid gap-4">
-        <h3 class="m-0">Players</h3>
-        <div v-if="availableRememberedPlayers.length" class="grid gap-2">
-          <label class="mb-1.5 block text-sm text-muted">Recent players</label>
+        <div class="flex items-center justify-between gap-3">
+          <h3 class="m-0 arcade-title text-sm">Players</h3>
+          <UBadge color="warning" variant="soft">{{ form.players.length }} active</UBadge>
+        </div>
+
+        <div v-if="availableRememberedPlayers.length" class="grid gap-2 rounded-xl border border-default p-3">
+          <p class="m-0 text-sm text-muted">Recent players</p>
           <div class="flex flex-wrap gap-2">
             <UButton
               v-for="savedPlayer in availableRememberedPlayers"
@@ -40,14 +42,34 @@
             </UButton>
           </div>
         </div>
-        <div v-for="(name, idx) in form.players" :key="idx">
-          <label class="mb-1.5 block text-sm text-muted">Player {{ idx + 1 }}</label>
-          <UInput v-model="form.players[idx]" type="text" maxlength="24" :placeholder="`Player ${idx + 1}`" @update:model-value="markDirty" />
+
+        <div class="player-grid">
+          <div v-for="(name, idx) in form.players" :key="idx" class="player-tile">
+            <div class="mb-2 flex items-center justify-between gap-2">
+              <p class="m-0 text-xs uppercase tracking-[0.08em] text-muted">Player {{ idx + 1 }}</p>
+              <UButton
+                v-if="form.players.length > 2"
+                type="button"
+                color="error"
+                variant="ghost"
+                size="xs"
+                icon="i-lucide-x"
+                @click="removePlayerAt(idx)"
+              />
+            </div>
+
+            <UInput
+              v-model="form.players[idx]"
+              type="text"
+              maxlength="24"
+              :placeholder="`Player ${idx + 1}`"
+              @update:model-value="markDirty"
+            />
+          </div>
         </div>
       </div>
 
       <div class="flex flex-wrap gap-2.5">
-        <UButton color="neutral" variant="soft" type="button" :disabled="form.players.length <= 2" @click="removePlayer">Remove</UButton>
         <UButton color="neutral" variant="soft" type="button" @click="addPlayer">Add Player</UButton>
         <UButton type="submit">Start Match</UButton>
       </div>
@@ -132,11 +154,13 @@ function addRememberedPlayer(name: string) {
   form.players.push(name)
 }
 
-function removePlayer() {
-  markDirty()
-  if (form.players.length > 2) {
-    form.players.pop()
+function removePlayerAt(index: number) {
+  if (form.players.length <= 2) {
+    return
   }
+
+  markDirty()
+  form.players.splice(index, 1)
 }
 
 function markDirty() {
@@ -169,3 +193,36 @@ watch(() => settingsStore.settings, (settings) => {
   form.legsTarget = settings.legsTarget
 }, { deep: true, immediate: true })
 </script>
+
+<style scoped>
+.player-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 640px) {
+  .player-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .player-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1280px) {
+  .player-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.player-tile {
+  border: 1px solid color-mix(in srgb, var(--ui-primary) 20%, var(--ui-border));
+  border-radius: 0.9rem;
+  padding: 0.65rem;
+  background: color-mix(in srgb, var(--ui-bg) 90%, transparent);
+}
+</style>

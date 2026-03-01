@@ -1,35 +1,42 @@
 <template>
   <section class="grid gap-4">
-    <h1 class="m-0">Settings</h1>
+    <UPageHeader
+      title="Settings"
+      description="Tune defaults and manage your local player roster."
+      headline="Control Room"
+      class="arcade-reveal"
+    />
 
-    <UCard class="grid max-w-[540px] gap-4">
-      <h2 class="m-0 text-lg font-semibold">Match defaults</h2>
-      <div>
-        <label class="mb-1.5 block text-sm text-muted">Default start score</label>
-        <USelect v-model="local.startScore" :items="startScoreItems" />
+    <UCard class="grid gap-5 arcade-glow arcade-reveal" :style="{ '--reveal-delay': '90ms' }">
+      <h2 class="m-0 arcade-title text-sm">Match defaults</h2>
+
+      <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(12rem,14rem)_minmax(12rem,14rem)_auto] xl:items-end">
+        <UFormField label="Default start score">
+          <USelect v-model="local.startScore" :items="startScoreItems" />
+        </UFormField>
+
+        <UFormField label="Default legs to win">
+          <UInputNumber v-model="local.legsTarget" :min="1" :max="11" />
+        </UFormField>
+
+        <div class="flex flex-col gap-3 rounded-xl border border-default p-3 md:col-span-2 md:flex-row md:gap-6 xl:col-span-1">
+          <UCheckbox v-model="local.doubleIn" label="Default double in" />
+          <UCheckbox v-model="local.doubleOut" label="Default double out" />
+        </div>
       </div>
 
-      <div>
-        <label class="mb-1.5 block text-sm text-muted">Default legs to win</label>
-        <UInput v-model.number="local.legsTarget" type="number" min="1" max="11" />
-      </div>
-
-      <UCheckbox v-model="local.doubleIn" label="Default double in" />
-      <UCheckbox v-model="local.doubleOut" label="Default double out" />
-
-      <UButton @click="save">Save defaults</UButton>
-      <UAlert v-if="saved" color="success" title="Saved" description="Default match settings updated." />
+      <UButton class="w-full sm:w-auto" @click="save">Save defaults</UButton>
     </UCard>
 
-    <UCard class="grid max-w-[540px] gap-4">
+    <UCard class="grid gap-4 arcade-reveal" :style="{ '--reveal-delay': '150ms' }">
       <div class="flex items-center justify-between gap-3">
-        <h2 class="m-0 text-lg font-semibold">Recent players</h2>
+        <h2 class="m-0 arcade-title text-sm">Recent players</h2>
         <UButton
           v-if="playersStore.recentPlayers.length"
           color="error"
           variant="soft"
           size="sm"
-          @click="playersStore.clearRecentPlayers()"
+          @click="clearRecentPlayers"
         >
           Clear all
         </UButton>
@@ -104,7 +111,7 @@
               color="error"
               variant="soft"
               size="xs"
-              @click="playersStore.removeRecentPlayer(row.original.id)"
+              @click="removeRecentPlayer(row.original.id, row.original.name)"
             >
               Delete
             </UButton>
@@ -133,6 +140,7 @@ type RecentPlayerRow = {
 const playersStore = usePlayersStore()
 const historyStore = useHistoryStore()
 const settingsStore = useSettingsStore()
+const toast = useToast()
 const startScoreItems = [301, 501]
 const newRecentName = ref('')
 const editingPlayerId = ref('')
@@ -206,8 +214,6 @@ const local = reactive({
   legsTarget: settingsStore.settings.legsTarget
 })
 
-const saved = ref(false)
-
 function save() {
   settingsStore.update({
     startScore: local.startScore,
@@ -215,10 +221,11 @@ function save() {
     doubleOut: local.doubleOut,
     legsTarget: local.legsTarget
   })
-  saved.value = true
-  window.setTimeout(() => {
-    saved.value = false
-  }, 1500)
+  toast.add({
+    title: 'Settings saved',
+    description: 'Default match settings updated.',
+    color: 'success'
+  })
 }
 
 function addRecentPlayer() {
@@ -229,6 +236,11 @@ function addRecentPlayer() {
 
   playersStore.addRecentPlayer(next)
   newRecentName.value = ''
+  toast.add({
+    title: 'Player added',
+    description: `${next} is now available in recent players.`,
+    color: 'success'
+  })
 }
 
 function startEdit(playerId: string, name: string) {
@@ -252,6 +264,37 @@ function saveEdit() {
 
   historyStore.linkRecentPlayerByName(playerId, original.name)
   playersStore.renameRecentPlayer(playerId, next)
+  toast.add({
+    title: 'Player renamed',
+    description: `${original.name} is now ${next}.`,
+    color: 'success'
+  })
   cancelEdit()
+}
+
+function removeRecentPlayer(playerId: string, playerName: string) {
+  if (!playerId) {
+    return
+  }
+
+  playersStore.removeRecentPlayer(playerId)
+  toast.add({
+    title: 'Player removed',
+    description: `${playerName} was removed from recent players.`,
+    color: 'error'
+  })
+}
+
+function clearRecentPlayers() {
+  if (!playersStore.recentPlayers.length) {
+    return
+  }
+
+  playersStore.clearRecentPlayers()
+  toast.add({
+    title: 'Recent players cleared',
+    description: 'All remembered players have been removed.',
+    color: 'error'
+  })
 }
 </script>

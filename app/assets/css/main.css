@@ -4,3 +4,78 @@
 @theme {
   --font-sans: "Barlow", "Segoe UI", sans-serif;
 }
+
+:root {
+  --arcade-bg-1: #070c16;
+  --arcade-bg-2: #111a2d;
+  --arcade-grid: rgba(255, 255, 255, 0.06);
+  --arcade-glow: color-mix(in srgb, var(--ui-primary) 35%, transparent);
+}
+
+body {
+  background:
+    radial-gradient(circle at 16% -4%, rgba(239, 103, 35, 0.32), transparent 38%),
+    radial-gradient(circle at 84% 10%, rgba(251, 191, 36, 0.22), transparent 32%),
+    linear-gradient(168deg, var(--arcade-bg-1), var(--arcade-bg-2));
+  background-attachment: fixed;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(var(--arcade-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--arcade-grid) 1px, transparent 1px);
+  background-size: 28px 28px;
+  mask-image: radial-gradient(circle at center, black 42%, transparent 100%);
+  opacity: 0.35;
+  z-index: -1;
+}
+
+.surface-card {
+  background: color-mix(in srgb, var(--ui-bg) 88%, transparent);
+  backdrop-filter: blur(12px);
+}
+
+.arcade-title {
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.arcade-glow {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ui-primary) 45%, transparent), 0 0 36px -18px var(--arcade-glow);
+}
+
+.arcade-hover-lift {
+  transition: transform 180ms ease, box-shadow 200ms ease, border-color 200ms ease;
+}
+
+.arcade-hover-lift:hover {
+  transform: translateY(-2px);
+}
+
+.arcade-reveal {
+  opacity: 0;
+  transform: translateY(14px) scale(0.99);
+  animation: arcade-reveal-up 420ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  animation-delay: var(--reveal-delay, 0ms);
+}
+
+@keyframes arcade-reveal-up {
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .arcade-hover-lift,
+  .arcade-reveal {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+    opacity: 1 !important;
+  }
+}

@@ -1,10 +1,13 @@
 <template>
   <UCard class="grid gap-4">
-    <h2 class="m-0">Winner: {{ summary.winnerName }}</h2>
-    <p class="m-0 text-muted">{{ summary.mode }} · {{ durationText }}</p>
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <h2 class="m-0">Winner: {{ summary.winnerName }}</h2>
+      <UBadge color="warning" variant="soft" size="lg">{{ summary.mode }}</UBadge>
+    </div>
+    <p class="m-0 text-muted">Duration {{ durationText }}</p>
 
     <div class="overflow-auto">
-      <table class="w-full border-collapse">
+      <table class="stats-table w-full border-collapse">
         <thead>
           <tr class="text-left text-muted">
             <th>Player</th>
@@ -46,3 +49,18 @@ const durationText = computed(() => {
   return `${minutes}m ${seconds}s`
 })
 </script>
+
+<style scoped>
+.stats-table th,
+.stats-table td {
+  padding: 0.45rem 0.55rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--ui-border) 65%, transparent);
+  white-space: nowrap;
+}
+
+.stats-table th {
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+</style>

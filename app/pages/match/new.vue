@@ -1,8 +1,15 @@
 <template>
   <section class="grid gap-4">
-    <UCard v-if="activeMatchId">
+    <UPageHeader
+      title="New Match"
+      description="Set your X01 rules, pick players, and start scoring."
+      headline="Match Setup"
+      class="arcade-reveal"
+    />
+
+    <UCard v-if="activeMatchId" class="arcade-glow arcade-reveal" :style="{ '--reveal-delay': '80ms' }">
       <template #header>
-        <h2 class="m-0">Active Match Found</h2>
+        <h2 class="m-0 arcade-title text-base">Active Match Found</h2>
       </template>
       <div class="grid gap-4">
         <p class="m-0 text-muted">Starting a new match will replace your current in-progress game.</p>
@@ -13,7 +20,7 @@
       </div>
     </UCard>
 
-    <MatchConfigForm @submit="onSubmit" />
+    <MatchConfigForm class="arcade-reveal" style="--reveal-delay: 140ms;" @submit="onSubmit" />
   </section>
 </template>
 
