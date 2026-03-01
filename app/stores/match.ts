@@ -9,6 +9,19 @@ function cloneMatch(match: Match): Match {
   return JSON.parse(JSON.stringify(match)) as Match
 }
 
+function shufflePlayers<T>(players: T[]): T[] {
+  const shuffled = [...players]
+
+  for (let idx = shuffled.length - 1; idx > 0; idx -= 1) {
+    const swapIndex = Math.floor(Math.random() * (idx + 1))
+    const current = shuffled[idx]
+    shuffled[idx] = shuffled[swapIndex]
+    shuffled[swapIndex] = current
+  }
+
+  return shuffled
+}
+
 export const useMatchStore = defineStore('match', () => {
   const activeMatch = ref<Match | null>(null)
   const undoStack = ref<Match[]>([])
@@ -29,12 +42,20 @@ export const useMatchStore = defineStore('match', () => {
   })
 
   function startMatch(settings: X01Settings, playerNames: string[], recentPlayerIds: Array<string | undefined> = []) {
-    activeMatch.value = createMatch(settings, playerNames)
+    const randomizedPlayers = shufflePlayers(playerNames.map((name, idx) => ({
+      name,
+      recentPlayerId: recentPlayerIds[idx]
+    })))
+
+    activeMatch.value = createMatch(
+      settings,
+      randomizedPlayers.map((player) => player.name)
+    )
 
     if (activeMatch.value) {
       activeMatch.value.players = activeMatch.value.players.map((player, idx) => ({
         ...player,
-        recentPlayerId: recentPlayerIds[idx]
+        recentPlayerId: randomizedPlayers[idx]?.recentPlayerId
       }))
     }
 
