@@ -96,7 +96,7 @@ function formatDuration(durationMs: number) {
   return `${minutes}m ${seconds}s`
 }
 
-function sortedPlayers(entry: (typeof historyStore.entries.value)[number]) {
+function sortedPlayers(entry: (typeof historyStore.entries)[number]) {
   return [...entry.players].sort((a, b) => {
     const aWinner = a.playerId === entry.winnerId
     const bWinner = b.playerId === entry.winnerId
