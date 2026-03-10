@@ -155,6 +155,7 @@ import MatchThrowPad from '~/components/match/ThrowPad.vue'
 import MatchTurnTimeline from '~/components/match/TurnTimeline.vue'
 import { useThrowSounds } from '~/composables/useThrowSounds'
 import { useHistoryStore } from '~/stores/history'
+import { complementaryColor } from '~/constants/playerColors'
 import { useMatchStore } from '~/stores/match'
 
 const route = useRoute()
@@ -243,23 +244,41 @@ watch(
     playConfetti()
 
     const { default: confetti } = await import('canvas-confetti')
-    const palette = [winnerColor.value, '#ffffff', '#ffd166']
+    const complement = complementaryColor(winnerColor.value)
 
     confetti({
-      particleCount: 130,
+      particleCount: 101,
       spread: 80,
       startVelocity: 50,
       origin: { y: 0.65 },
-      colors: palette
+      colors: [winnerColor.value],
+      shapes: ['circle']
+    })
+    confetti({
+      particleCount: 50,
+      spread: 80,
+      startVelocity: 50,
+      origin: { y: 0.65 },
+      colors: ['#FFFFFF', complement],
+      shapes: ['square']
     })
 
     setTimeout(() => {
       confetti({
-        particleCount: 110,
+        particleCount: 80,
         spread: 100,
         startVelocity: 45,
         origin: { y: 0.58 },
-        colors: palette
+        colors: [winnerColor.value],
+        shapes: ['circle']
+      })
+      confetti({
+        particleCount: 40,
+        spread: 100,
+        startVelocity: 45,
+        origin: { y: 0.58 },
+        colors: ['#FFFFFF', complement],
+        shapes: ['square']
       })
     }, 380)
   },
