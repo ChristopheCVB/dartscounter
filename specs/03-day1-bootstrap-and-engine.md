@@ -18,7 +18,7 @@ Day 1 baseline delivered:
 
 - Nuxt app initialized and running on Bun scripts.
 - `@nuxt/ui` and `@pinia/nuxt` are enabled in `nuxt.config.ts`.
-- `zod` and `idb` are present in dependencies.
+- `zod` is present in dependencies.
 
 ## 2) App Shell and Theming
 

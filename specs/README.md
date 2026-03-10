@@ -10,7 +10,7 @@ Current baseline:
 - Package manager: Bun
 - MVP game mode: X01 only (301/501)
 - Audience: friends playing locally on one device
-- Persistence: local-first (`localStorage`, with optional `idb` growth path)
+- Persistence: local-first (`localStorage`)
 - UI direction: sporty modern, Nuxt UI-first components/layout
 - Platform priority: responsive for mobile and desktop
 - Turn behavior: auto-end after 3 darts

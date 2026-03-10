@@ -11,7 +11,9 @@ Last verified against code: 2026-03-01
 - Nuxt UI
 - Pinia
 - Zod (form + schema validation)
-- Local persistence first (`localStorage` via `usePersistence`), optional IndexedDB path via `idb`
+- @vueuse/sound (throw sounds)
+- canvas-confetti (checkout celebration)
+- Local persistence first (`localStorage` via `usePersistence`)
 - Testing: Vitest (+ Vue Test Utils; E2E later)
 
 ## 2) High-Level Structure

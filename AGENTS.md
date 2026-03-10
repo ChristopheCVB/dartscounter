@@ -5,7 +5,7 @@ Concise map of the codebase for AI agents and developers. Authoritative behavior
 ## Project overview
 
 - **What:** DartCounter — local X01 darts scoring app (301/501, pass-and-play, bust/checkout, undo, stats, persistence).
-- **Stack:** Nuxt 4, Nuxt UI, Pinia, VueUse, TypeScript, Zod, Vitest. Local-first (localStorage; optional idb).
+- **Stack:** Nuxt 4, Nuxt UI, Pinia, VueUse, @vueuse/sound, canvas-confetti, TypeScript, Zod, Vitest. Local-first (localStorage).
 - **Audience:** One device, friends playing locally; responsive mobile/desktop.
 
 ## Directory map
@@ -41,9 +41,9 @@ Concise map of the codebase for AI agents and developers. Authoritative behavior
 
 ## Commands
 
-- **Dev:** `pnpm dev` (or npm/bun equivalent) — http://localhost:3000
-- **Build:** `pnpm build`; **Preview:** `pnpm preview`
-- **Tests:** `pnpm test` (Vitest run); `pnpm test:watch` for watch mode
+- **Dev:** `bun run dev` — http://localhost:3000
+- **Build:** `bun run build`; **Preview:** `bun run preview`
+- **Tests:** `bun run test` (Vitest run); `bun run test:watch` for watch mode
 
 ## Agent guidance
 
