@@ -5,15 +5,17 @@
       :key="player.id"
       :player="player"
       :active="idx === activeIndex"
+      :settings="settings"
     />
   </section>
 </template>
 
 <script setup lang="ts">
-import type { MatchPlayer } from '~~/shared/types/darts'
+import type { GameSettings, MatchPlayer } from '~~/shared/types/darts'
 
 defineProps<{
   players: MatchPlayer[]
   activeIndex: number
+  settings: GameSettings
 }>()
 </script>

@@ -1,4 +1,4 @@
-import type { MatchSummary } from '~~/shared/types/darts'
+import type { GameMode, MatchSummary } from '~~/shared/types/darts'
 import type { RecentPlayer } from '~/stores/players'
 import { normalizePlayerColor } from '~/constants/playerColors'
 
@@ -18,6 +18,7 @@ export type AggregatedPlayerStats = {
   average: number
   firstNineAverage: number
   checkoutPercentage: number
+  hitRate?: number
   lastPlayed: number
 }
 
@@ -25,7 +26,7 @@ function round(value: number): number {
   return Math.round(value * 100) / 100
 }
 
-type MutableAggregate = Omit<AggregatedPlayerStats, 'average' | 'firstNineAverage' | 'checkoutPercentage'>
+type MutableAggregate = Omit<AggregatedPlayerStats, 'average' | 'firstNineAverage' | 'checkoutPercentage' | 'hitRate'>
 
 function emptyAggregate(seed: { id: string, name: string, color: string }): MutableAggregate {
   return {
@@ -45,14 +46,20 @@ function emptyAggregate(seed: { id: string, name: string, color: string }): Muta
   }
 }
 
-export function aggregatePlayerStats(entries: MatchSummary[], recentPlayers: RecentPlayer[]): AggregatedPlayerStats[] {
+export function aggregatePlayerStats(
+  entries: MatchSummary[],
+  recentPlayers: RecentPlayer[],
+  mode: GameMode = 'x01'
+): AggregatedPlayerStats[] {
   const byId = new Map<string, MutableAggregate>()
 
   for (const player of recentPlayers) {
     byId.set(player.id, emptyAggregate(player))
   }
 
-  for (const entry of entries) {
+  const filtered = entries.filter(entry => (entry.gameMode || 'x01') === mode)
+
+  for (const entry of filtered) {
     for (const player of entry.players) {
       const existing = byId.get(player.playerId)
       const aggregate = existing || emptyAggregate({
@@ -65,13 +72,16 @@ export function aggregatePlayerStats(entries: MatchSummary[], recentPlayers: Rec
       aggregate.color = normalizePlayerColor(player.color || aggregate.color)
       aggregate.matches += 1
       aggregate.dartsThrown += player.dartsThrown
-      aggregate.busts += player.busts
-      aggregate.checkoutAttempts += player.checkoutAttempts
-      aggregate.checkoutsMade += player.checkoutsMade
       aggregate.scoredPoints += player.scoredPoints
-      aggregate.firstNinePoints += player.firstNinePoints
-      aggregate.firstNineDarts += player.firstNineDarts
       aggregate.lastPlayed = Math.max(aggregate.lastPlayed, entry.finishedAt)
+
+      if (mode === 'x01') {
+        aggregate.busts += player.busts
+        aggregate.checkoutAttempts += player.checkoutAttempts
+        aggregate.checkoutsMade += player.checkoutsMade
+        aggregate.firstNinePoints += player.firstNinePoints
+        aggregate.firstNineDarts += player.firstNineDarts
+      }
 
       const isWinner = player.playerId === entry.winnerId
       if (isWinner) {
@@ -84,6 +94,17 @@ export function aggregatePlayerStats(entries: MatchSummary[], recentPlayers: Rec
 
   return [...byId.values()]
     .map((player) => {
+      if (mode === 'atc') {
+        const hitRate = player.dartsThrown > 0 ? round(player.scoredPoints / player.dartsThrown) : 0
+        return {
+          ...player,
+          average: 0,
+          firstNineAverage: 0,
+          checkoutPercentage: 0,
+          hitRate
+        }
+      }
+
       const average = player.dartsThrown > 0 ? (player.scoredPoints / player.dartsThrown) * 3 : 0
       const firstNineAverage = player.firstNineDarts > 0 ? (player.firstNinePoints / player.firstNineDarts) * 3 : 0
       const checkoutPercentage = player.checkoutAttempts > 0 ? (player.checkoutsMade / player.checkoutAttempts) * 100 : 0

@@ -57,7 +57,8 @@ function normalizeSummary(entry: MatchSummary): MatchSummary {
     winnerId: entry.winnerId || winner?.playerId || players[0]?.playerId || crypto.randomUUID(),
     finishedAt: Number(entry.finishedAt) || Date.now(),
     durationMs: Number(entry.durationMs) || 0,
-    mode: entry.mode || 'X01 501'
+    mode: entry.mode || 'X01 501',
+    gameMode: entry.gameMode || 'x01'
   }
 }
 

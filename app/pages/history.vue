@@ -45,12 +45,18 @@
             <thead>
               <tr class="text-left text-muted">
                 <th>Player</th>
-                <th>Legs</th>
-                <th>Avg</th>
-                <th>First 9</th>
-                <th>Checkout</th>
-                <th>Darts</th>
-                <th>Busts</th>
+                <template v-if="entry.gameMode === 'atc'">
+                  <th>Hit Rate</th>
+                  <th>Darts</th>
+                </template>
+                <template v-else>
+                  <th>Legs</th>
+                  <th>Avg</th>
+                  <th>First 9</th>
+                  <th>Checkout</th>
+                  <th>Darts</th>
+                  <th>Busts</th>
+                </template>
               </tr>
             </thead>
             <tbody>
@@ -65,12 +71,18 @@
                     {{ row.name }}
                   </span>
                 </td>
-                <td>{{ row.legsWon }}</td>
-                <td>{{ row.average.toFixed(2) }}</td>
-                <td>{{ row.firstNineAverage.toFixed(2) }}</td>
-                <td>{{ row.checkoutsMade }}/{{ row.checkoutAttempts }} ({{ row.checkoutPercentage.toFixed(2) }}%)</td>
-                <td>{{ row.dartsThrown }}</td>
-                <td>{{ row.busts }}</td>
+                <template v-if="entry.gameMode === 'atc'">
+                  <td>{{ row.hitRate !== undefined ? (row.hitRate * 100).toFixed(0) + '%' : '—' }}</td>
+                  <td>{{ row.dartsThrown }}</td>
+                </template>
+                <template v-else>
+                  <td>{{ row.legsWon }}</td>
+                  <td>{{ row.average.toFixed(2) }}</td>
+                  <td>{{ row.firstNineAverage.toFixed(2) }}</td>
+                  <td>{{ row.checkoutsMade }}/{{ row.checkoutAttempts }} ({{ row.checkoutPercentage.toFixed(2) }}%)</td>
+                  <td>{{ row.dartsThrown }}</td>
+                  <td>{{ row.busts }}</td>
+                </template>
               </tr>
             </tbody>
           </table>

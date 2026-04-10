@@ -1,4 +1,4 @@
-import type { Match, MatchSummary, X01Settings } from '~~/shared/types/darts'
+import type { AtcSettings, Match, MatchSummary, X01Settings } from '~~/shared/types/darts'
 
 export type StoredRecentPlayer = {
   id: string
@@ -15,6 +15,7 @@ const ACTIVE_MATCH_KEY = `dartcounter:${VERSION}:active-match`
 const HISTORY_KEY = `dartcounter:${VERSION}:history`
 const SETTINGS_KEY = `dartcounter:${VERSION}:settings`
 const RECENT_PLAYERS_KEY = `dartcounter:${VERSION}:recent-players`
+const ATC_SETTINGS_KEY = `dartcounter:${VERSION}:atc-settings`
 
 function safeRead<T>(key: string, fallback: T): T {
   if (!import.meta.client) {
@@ -53,13 +54,23 @@ export function usePersistence() {
     safeWrite(ACTIVE_MATCH_KEY, match)
   }
 
-  const loadActiveMatch = () => safeRead<Match | null>(ACTIVE_MATCH_KEY, null)
+  const loadActiveMatch = (): Match | null => {
+    const match = safeRead<Match | null>(ACTIVE_MATCH_KEY, null)
+    if (match && !match.settings.mode) {
+      // Legacy match without mode discriminant — treat as X01
+      ;(match.settings as Record<string, unknown>).mode = 'x01'
+    }
+    return match
+  }
 
   const saveHistory = (history: MatchSummary[]) => safeWrite(HISTORY_KEY, history)
   const loadHistory = () => safeRead<MatchSummary[]>(HISTORY_KEY, [])
 
   const saveSettings = (settings: StoredSettings) => safeWrite(SETTINGS_KEY, settings)
   const loadSettings = (fallback: StoredSettings) => safeRead<StoredSettings>(SETTINGS_KEY, fallback)
+
+  const saveAtcSettings = (settings: AtcSettings) => safeWrite(ATC_SETTINGS_KEY, settings)
+  const loadAtcSettings = (fallback: AtcSettings) => safeRead<AtcSettings>(ATC_SETTINGS_KEY, fallback)
 
   const saveRecentPlayers = (players: StoredRecentPlayer[]) => safeWrite(RECENT_PLAYERS_KEY, players)
   const loadRecentPlayers = () => safeRead<StoredRecentPlayer[] | string[]>(RECENT_PLAYERS_KEY, [])
@@ -71,6 +82,8 @@ export function usePersistence() {
     loadHistory,
     saveSettings,
     loadSettings,
+    saveAtcSettings,
+    loadAtcSettings,
     saveRecentPlayers,
     loadRecentPlayers
   }

@@ -8,9 +8,22 @@
     </template>
 
     <div class="flex flex-wrap gap-2">
-      <UBadge v-for="dart in darts" :key="dart.id" color="neutral" variant="soft" size="lg">
-        {{ dart.multiplier }}x{{ dart.segment }} -> {{ dart.scoredPoints }}
-      </UBadge>
+      <template v-if="isAtc">
+        <UBadge
+          v-for="dart in darts"
+          :key="dart.id"
+          :color="dart.scoredPoints > 0 ? 'success' : 'neutral'"
+          variant="soft"
+          size="lg"
+        >
+          {{ dart.scoredPoints > 0 ? '✓' : '✗' }} {{ dart.segment === 0 ? 'Miss' : `${dart.multiplier === 1 ? '' : dart.multiplier === 2 ? 'D' : 'T'}${dart.segment === 25 ? 'Bull' : dart.segment}` }}
+        </UBadge>
+      </template>
+      <template v-else>
+        <UBadge v-for="dart in darts" :key="dart.id" color="neutral" variant="soft" size="lg">
+          {{ dart.multiplier }}x{{ dart.segment }} -> {{ dart.scoredPoints }}
+        </UBadge>
+      </template>
       <span v-if="!darts.length" class="text-sm text-muted">No darts yet.</span>
     </div>
 
@@ -25,7 +38,8 @@
 </template>
 
 <script setup lang="ts">
-import type { ThrowEvent, X01Settings } from '~~/shared/types/darts'
+import type { GameSettings, ThrowEvent } from '~~/shared/types/darts'
+import { formatAtcTarget } from '~/composables/useAtcEngine'
 
 type RecommendedDart = {
   label: string
@@ -62,14 +76,32 @@ const props = defineProps<{
   darts: ThrowEvent[]
   score: number
   hasOpened: boolean
-  settings: Pick<X01Settings, 'doubleIn' | 'doubleOut'>
+  settings: GameSettings
+  atcTarget?: number
 }>()
 
+const isAtc = computed(() => props.settings.mode === 'atc')
 const dartsLeft = computed(() => Math.max(0, 3 - props.darts.length))
 
 const hintText = computed(() => {
   if (dartsLeft.value === 0) {
     return 'Turn complete. Undo to adjust or wait for auto-advance.'
+  }
+
+  if (isAtc.value) {
+    const target = props.atcTarget ?? 1
+    if (target > 21) {
+      return 'All targets cleared!'
+    }
+    const targetLabel = formatAtcTarget(target)
+    if (target > 20) {
+      return `Hit the Bull to win!`
+    }
+    const isFast = props.settings.mode === 'atc' && props.settings.fastForward
+    if (isFast) {
+      return `Hit segment ${targetLabel}. Doubles skip 2, trebles skip 3.`
+    }
+    return `Hit segment ${targetLabel}.`
   }
 
   if (props.settings.doubleIn && !props.hasOpened) {

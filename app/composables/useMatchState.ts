@@ -1,5 +1,6 @@
-import type { DartInput, Match, MatchPlayer, MatchSummary, Player, PlayerIdentity, PlayerSummary, ThrowEvent, X01Settings } from '~~/shared/types/darts'
+import type { AtcSettings, DartInput, GameSettings, Match, MatchPlayer, MatchSummary, Player, PlayerIdentity, PlayerSummary, ThrowEvent, X01Settings } from '~~/shared/types/darts'
 import { fallbackPlayerColor } from '../constants/playerColors'
+import { applyAtcDart } from './useAtcEngine'
 import { applyDart, isValidSegmentMultiplier } from './useScoringEngine'
 
 type PlayerSeed = PlayerIdentity
@@ -27,6 +28,18 @@ function buildPlayers(players: Player[], settings: X01Settings): MatchPlayer[] {
   }))
 }
 
+function buildAtcPlayers(players: Player[]): MatchPlayer[] {
+  return players.map((player, idx) => ({
+    ...player,
+    color: player.color || fallbackPlayerColor(idx),
+    score: 0,
+    hasOpened: true,
+    legsWon: 0,
+    atcTarget: 1,
+    stats: createStats()
+  }))
+}
+
 function round(value: number): number {
   return Math.round(value * 100) / 100
 }
@@ -40,7 +53,33 @@ function getPlayerAt(match: Match, index: number): MatchPlayer {
 }
 
 function computeSummary(match: Match): MatchSummary {
+  const isAtc = match.settings.mode === 'atc'
+
   const players: PlayerSummary[] = match.players.map((player) => {
+    if (isAtc) {
+      const hitRate = player.stats.dartsThrown > 0
+        ? round(player.stats.scoredPoints / player.stats.dartsThrown)
+        : 0
+
+      return {
+        playerId: player.id,
+        name: player.name,
+        color: player.color,
+        legsWon: 0,
+        average: 0,
+        scoredPoints: player.stats.scoredPoints,
+        firstNineAverage: 0,
+        firstNinePoints: 0,
+        firstNineDarts: 0,
+        checkoutAttempts: 0,
+        checkoutsMade: 0,
+        checkoutPercentage: 0,
+        dartsThrown: player.stats.dartsThrown,
+        busts: 0,
+        hitRate
+      }
+    }
+
     const average = player.stats.dartsThrown > 0
       ? (player.stats.scoredPoints / player.stats.dartsThrown) * 3
       : 0
@@ -73,12 +112,18 @@ function computeSummary(match: Match): MatchSummary {
 
   const winner = match.players.find(player => player.id === match.winnerId) || getPlayerAt(match, 0)
 
+  const atcSettings = isAtc ? (match.settings as AtcSettings) : null
+  const modeLabel = isAtc
+    ? (atcSettings!.fastForward ? 'Around the Clock (Fast)' : 'Around the Clock')
+    : `X01 ${(match.settings as X01Settings).startScore}`
+
   return {
     id: crypto.randomUUID(),
     matchId: match.id,
     finishedAt: match.finishedAt || Date.now(),
     durationMs: (match.finishedAt || Date.now()) - match.startedAt,
-    mode: `X01 ${match.settings.startScore}`,
+    mode: modeLabel,
+    gameMode: match.settings.mode,
     players,
     winnerId: winner.id,
     winnerName: winner.name
@@ -86,9 +131,10 @@ function computeSummary(match: Match): MatchSummary {
 }
 
 function resetForNextLeg(match: Match) {
+  const settings = match.settings as X01Settings
   for (const player of match.players) {
-    player.score = match.settings.startScore
-    player.hasOpened = !match.settings.doubleIn
+    player.score = settings.startScore
+    player.hasOpened = !settings.doubleIn
   }
   match.currentTurnDarts = []
   match.currentTurnIndex = 0
@@ -98,7 +144,7 @@ function resetForNextLeg(match: Match) {
 }
 
 export function useMatchState() {
-  const createMatch = (settings: X01Settings, seeds: PlayerSeed[]): Match => {
+  const createMatch = (settings: GameSettings, seeds: PlayerSeed[]): Match => {
     const players: Player[] = seeds.map((seed, idx) => ({
       id: seed.id,
       name: seed.name,
@@ -109,7 +155,10 @@ export function useMatchState() {
       throw new Error('Cannot create match without players.')
     }
 
-    const builtPlayers = buildPlayers(players, settings)
+    const builtPlayers = settings.mode === 'atc'
+      ? buildAtcPlayers(players)
+      : buildPlayers(players, settings)
+
     const firstPlayer = builtPlayers[0]
 
     if (!firstPlayer) {
@@ -125,7 +174,7 @@ export function useMatchState() {
       finishedAt: null,
       currentPlayerIndex: 0,
       currentTurnIndex: 0,
-      currentTurnStartScore: firstPlayer.score,
+      currentTurnStartScore: settings.mode === 'atc' ? 0 : firstPlayer.score,
       currentTurnOpenedAtStart: firstPlayer.hasOpened,
       currentTurnDarts: [],
       throws: [],
@@ -133,9 +182,61 @@ export function useMatchState() {
     }
   }
 
+  const recordDartAtc = (match: Match, input: DartInput): { updated: Match, summary: MatchSummary | null } => {
+    const settings = match.settings as AtcSettings
+    const player = getPlayerAt(match, match.currentPlayerIndex)
+    const currentTarget = player.atcTarget ?? 1
+
+    const result = applyAtcDart(currentTarget, input, settings)
+
+    const event: ThrowEvent = {
+      id: crypto.randomUUID(),
+      playerId: player.id,
+      turnIndex: match.currentTurnIndex,
+      dartIndex: match.currentTurnDarts.length + 1,
+      segment: input.segment,
+      multiplier: input.multiplier,
+      points: result.advance,
+      scoredPoints: result.advance,
+      scoreBefore: currentTarget,
+      scoreAfter: result.nextTarget,
+      openedBefore: true,
+      openedAfter: true,
+      isBust: false,
+      isCheckout: result.isWin,
+      timestamp: Date.now()
+    }
+
+    if (result.hit) {
+      player.atcTarget = result.nextTarget
+      player.stats.scoredPoints += result.advance
+    }
+
+    player.stats.dartsThrown += 1
+    match.currentTurnDarts.push(event)
+    match.throws.push(event)
+
+    if (result.isWin) {
+      match.status = 'finished'
+      match.finishedAt = Date.now()
+      match.winnerId = player.id
+      return { updated: match, summary: computeSummary(match) }
+    }
+
+    if (match.currentTurnDarts.length >= 3) {
+      advanceTurn(match)
+    }
+
+    return { updated: match, summary: null }
+  }
+
   const recordDart = (match: Match, input: DartInput): { updated: Match, summary: MatchSummary | null } => {
     if (!isValidSegmentMultiplier(input.segment, input.multiplier) || match.status !== 'in_progress') {
       return { updated: match, summary: null }
+    }
+
+    if (match.settings.mode === 'atc') {
+      return recordDartAtc(match, input)
     }
 
     const player = getPlayerAt(match, match.currentPlayerIndex)
@@ -147,7 +248,7 @@ export function useMatchState() {
       player.stats.checkoutAttempts += 1
     }
 
-    const applied = applyDart(player.score, player.hasOpened, input, match.settings, turnStartScore, turnStartOpened)
+    const applied = applyDart(player.score, player.hasOpened, input, match.settings as X01Settings, turnStartScore, turnStartOpened)
 
     const event: ThrowEvent = {
       id: crypto.randomUUID(),
@@ -192,7 +293,8 @@ export function useMatchState() {
       player.stats.checkoutsMade += 1
       player.legsWon += 1
 
-      if (player.legsWon >= match.settings.legsTarget) {
+      const x01Settings = match.settings as X01Settings
+      if (player.legsWon >= x01Settings.legsTarget) {
         match.status = 'finished'
         match.finishedAt = Date.now()
         match.winnerId = player.id
@@ -217,7 +319,7 @@ export function useMatchState() {
     match.currentTurnDarts = []
 
     const player = getPlayerAt(match, match.currentPlayerIndex)
-    match.currentTurnStartScore = player.score
+    match.currentTurnStartScore = match.settings.mode === 'atc' ? (player.atcTarget ?? 1) : player.score
     match.currentTurnOpenedAtStart = player.hasOpened
   }
 

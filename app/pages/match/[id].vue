@@ -1,10 +1,10 @@
 <template>
   <section v-if="match" class="grid items-start gap-5 lg:grid-cols-[2fr_1fr]">
     <div class="grid gap-4 arcade-reveal">
-      <MatchScoreboard :players="match.players" :active-index="match.currentPlayerIndex" />
+      <MatchScoreboard :players="match.players" :active-index="match.currentPlayerIndex" :settings="match.settings" />
       <MatchThrowPad
         :multiplier="matchStore.selectedMultiplier"
-        :numeric-buffer="matchStore.numericBuffer"
+        :numeric-buffer="match.settings.mode === 'atc' ? '' : matchStore.numericBuffer"
         :player-color="currentPlayerColor"
         @multiplier="matchStore.setMultiplier"
         @segment="matchStore.addSegment"
@@ -41,7 +41,7 @@
               }"
             >
               <span class="flex items-center gap-1.5"><span class="score-row-dot" :style="{ background: player.color }" />{{ player.name }}</span>
-              <strong>{{ player.score }}</strong>
+              <strong>{{ match.settings.mode === 'atc' ? `T${player.atcTarget ?? 1}` : player.score }}</strong>
             </div>
           </div>
         </UCard>
@@ -61,6 +61,7 @@
         :score="match.players[match.currentPlayerIndex]?.score || 0"
         :has-opened="match.players[match.currentPlayerIndex]?.hasOpened ?? true"
         :settings="match.settings"
+        :atc-target="match.players[match.currentPlayerIndex]?.atcTarget"
       />
     </div>
 
@@ -118,7 +119,12 @@
                   <span class="font-medium">{{ row.name }}</span>
                 </div>
                 <div class="text-sm text-muted">
-                  {{ row.legsWon }} legs · {{ row.average.toFixed(2) }} avg
+                  <template v-if="lastSummary?.gameMode === 'atc'">
+                    {{ row.dartsThrown }} darts · {{ row.hitRate !== undefined ? (row.hitRate * 100).toFixed(0) : '0' }}% hit
+                  </template>
+                  <template v-else>
+                    {{ row.legsWon }} legs · {{ row.average.toFixed(2) }} avg
+                  </template>
                 </div>
               </div>
             </div>

@@ -1,16 +1,23 @@
-import type { X01Settings } from '~~/shared/types/darts'
+import type { AtcSettings, X01Settings } from '~~/shared/types/darts'
 import { usePersistence } from '~/composables/usePersistence'
 
 const DEFAULT_SETTINGS: X01Settings = {
+  mode: 'x01',
   startScore: 501,
   doubleIn: false,
   doubleOut: true,
   legsTarget: 1
 }
 
+const DEFAULT_ATC_SETTINGS: AtcSettings = {
+  mode: 'atc',
+  fastForward: false
+}
+
 export const useSettingsStore = defineStore('settings', () => {
   const settings = ref<X01Settings>({ ...DEFAULT_SETTINGS })
-  const { saveSettings, loadSettings } = usePersistence()
+  const atcSettings = ref<AtcSettings>({ ...DEFAULT_ATC_SETTINGS })
+  const { saveSettings, loadSettings, saveAtcSettings, loadAtcSettings } = usePersistence()
   const soundEnabled = ref(true)
 
   function persist() {
@@ -20,12 +27,20 @@ export const useSettingsStore = defineStore('settings', () => {
     })
   }
 
-  function update(patch: Partial<X01Settings>) {
+  function update(patch: Partial<Omit<X01Settings, 'mode'>>) {
     settings.value = {
       ...settings.value,
       ...patch
     }
     persist()
+  }
+
+  function updateAtcSettings(patch: Partial<Omit<AtcSettings, 'mode'>>) {
+    atcSettings.value = {
+      ...atcSettings.value,
+      ...patch
+    }
+    saveAtcSettings(atcSettings.value)
   }
 
   function updateSoundEnabled(value: boolean) {
@@ -40,18 +55,27 @@ export const useSettingsStore = defineStore('settings', () => {
     })
 
     settings.value = {
+      mode: 'x01',
       startScore: stored.startScore,
       doubleIn: stored.doubleIn,
       doubleOut: stored.doubleOut,
       legsTarget: stored.legsTarget
     }
     soundEnabled.value = stored.soundEnabled ?? true
+
+    const storedAtc = loadAtcSettings(DEFAULT_ATC_SETTINGS)
+    atcSettings.value = {
+      mode: 'atc',
+      fastForward: storedAtc.fastForward ?? false
+    }
   }
 
   return {
     settings,
+    atcSettings,
     soundEnabled,
     update,
+    updateAtcSettings,
     updateSoundEnabled,
     load,
     DEFAULT_SETTINGS

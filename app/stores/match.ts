@@ -1,4 +1,4 @@
-import type { DartInput, Match, Multiplier, Segment, X01Settings } from '~~/shared/types/darts'
+import type { DartInput, GameSettings, Match, Multiplier, Segment } from '~~/shared/types/darts'
 import { parsePointsToDart } from '~/composables/useScoringEngine'
 import { useHistoryStore } from '~/stores/history'
 import { useMatchState } from '~/composables/useMatchState'
@@ -48,7 +48,7 @@ export const useMatchStore = defineStore('match', () => {
   })
 
   function startMatch(
-    settings: X01Settings,
+    settings: GameSettings,
     players: Array<{ id: string, name: string, color: string }>
   ) {
     const randomizedPlayers = shufflePlayers(players)
@@ -144,15 +144,21 @@ export const useMatchStore = defineStore('match', () => {
       return
     }
 
+    if (activeMatch.value.settings.mode !== 'x01') {
+      numericBuffer.value = ''
+      return
+    }
+
     const total = Number(numericBuffer.value)
     if (Number.isNaN(total) || total < 0 || total > 60) {
       numericBuffer.value = ''
       return
     }
 
+    const settings = activeMatch.value.settings
     const player = activeMatch.value.players[activeMatch.value.currentPlayerIndex]!
     const targetScore = player.score - total
-    const preferDouble = activeMatch.value.settings.doubleOut && targetScore === 0
+    const preferDouble = settings.doubleOut && targetScore === 0
     const parsed = parsePointsToDart(total, preferDouble)
 
     if (!parsed) {

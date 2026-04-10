@@ -14,23 +14,35 @@
         <thead>
           <tr class="text-left text-muted">
             <th>Player</th>
-            <th>Legs</th>
-            <th>Avg</th>
-            <th>First 9</th>
-            <th>Checkout</th>
-            <th>Darts</th>
-            <th>Busts</th>
+            <template v-if="isAtc">
+              <th>Hit Rate</th>
+              <th>Darts</th>
+            </template>
+            <template v-else>
+              <th>Legs</th>
+              <th>Avg</th>
+              <th>First 9</th>
+              <th>Checkout</th>
+              <th>Darts</th>
+              <th>Busts</th>
+            </template>
           </tr>
         </thead>
         <tbody>
           <tr v-for="row in summary.players" :key="row.playerId">
             <td>{{ row.name }}</td>
-            <td>{{ row.legsWon }}</td>
-            <td>{{ row.average }}</td>
-            <td>{{ row.firstNineAverage }}</td>
-            <td>{{ row.checkoutsMade }}/{{ row.checkoutAttempts }} ({{ row.checkoutPercentage }}%)</td>
-            <td>{{ row.dartsThrown }}</td>
-            <td>{{ row.busts }}</td>
+            <template v-if="isAtc">
+              <td>{{ row.hitRate !== undefined ? (row.hitRate * 100).toFixed(0) + '%' : '—' }}</td>
+              <td>{{ row.dartsThrown }}</td>
+            </template>
+            <template v-else>
+              <td>{{ row.legsWon }}</td>
+              <td>{{ row.average }}</td>
+              <td>{{ row.firstNineAverage }}</td>
+              <td>{{ row.checkoutsMade }}/{{ row.checkoutAttempts }} ({{ row.checkoutPercentage }}%)</td>
+              <td>{{ row.dartsThrown }}</td>
+              <td>{{ row.busts }}</td>
+            </template>
           </tr>
         </tbody>
       </table>
@@ -44,6 +56,8 @@ import type { MatchSummary } from '~~/shared/types/darts'
 const props = defineProps<{
   summary: MatchSummary
 }>()
+
+const isAtc = computed(() => props.summary.gameMode === 'atc')
 
 const durationText = computed(() => {
   const totalSeconds = Math.floor(props.summary.durationMs / 1000)

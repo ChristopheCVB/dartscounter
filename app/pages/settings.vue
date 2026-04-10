@@ -71,6 +71,23 @@
       </div>
       <p class="m-0 text-xs text-muted">Renaming is a strict replacement and will not merge stats from other players with similar names.</p>
 
+      <div class="flex gap-2">
+        <UButton
+          type="button"
+          size="sm"
+          :color="leaderboardMode === 'x01' ? 'primary' : 'neutral'"
+          :variant="leaderboardMode === 'x01' ? 'solid' : 'soft'"
+          @click="leaderboardMode = 'x01'"
+        >X01</UButton>
+        <UButton
+          type="button"
+          size="sm"
+          :color="leaderboardMode === 'atc' ? 'primary' : 'neutral'"
+          :variant="leaderboardMode === 'atc' ? 'solid' : 'soft'"
+          @click="leaderboardMode = 'atc'"
+        >Around the Clock</UButton>
+      </div>
+
       <UTable
         v-if="playersStore.recentPlayers.length"
         :data="recentPlayerRows"
@@ -146,6 +163,7 @@
 </template>
 
 <script setup lang="ts">
+import type { GameMode } from '~~/shared/types/darts'
 import { fallbackPlayerColor, normalizePlayerColor } from '~/constants/playerColors'
 import { aggregatePlayerStats } from '~/composables/usePlayerStats'
 import { useHistoryStore } from '~/stores/history'
@@ -174,25 +192,50 @@ const newRecentColor = ref(fallbackPlayerColor(0))
 const editingPlayerId = ref('')
 const editingName = ref('')
 const colorUpdateTimeouts = new Map<string, ReturnType<typeof setTimeout>>()
+const leaderboardMode = ref<GameMode>('x01')
 
-const recentPlayerColumns = [
-  { accessorKey: 'name', header: 'Player' },
-  { accessorKey: 'color', header: 'Color' },
-  { accessorKey: 'matches', header: 'Matches' },
-  { accessorKey: 'wins', header: 'Wins' },
-  { accessorKey: 'dartsThrown', header: 'Total Darts' },
-  { accessorKey: 'average', header: '3-Dart Avg' },
-  { accessorKey: 'lastPlayed', header: 'Last Played' },
-  { accessorKey: 'actions', header: 'Actions' }
-]
+const recentPlayerColumns = computed(() => {
+  if (leaderboardMode.value === 'atc') {
+    return [
+      { accessorKey: 'name', header: 'Player' },
+      { accessorKey: 'color', header: 'Color' },
+      { accessorKey: 'matches', header: 'Matches' },
+      { accessorKey: 'wins', header: 'Wins' },
+      { accessorKey: 'dartsThrown', header: 'Total Darts' },
+      { accessorKey: 'average', header: 'Hit Rate' },
+      { accessorKey: 'lastPlayed', header: 'Last Played' },
+      { accessorKey: 'actions', header: 'Actions' }
+    ]
+  }
+  return [
+    { accessorKey: 'name', header: 'Player' },
+    { accessorKey: 'color', header: 'Color' },
+    { accessorKey: 'matches', header: 'Matches' },
+    { accessorKey: 'wins', header: 'Wins' },
+    { accessorKey: 'dartsThrown', header: 'Total Darts' },
+    { accessorKey: 'average', header: '3-Dart Avg' },
+    { accessorKey: 'lastPlayed', header: 'Last Played' },
+    { accessorKey: 'actions', header: 'Actions' }
+  ]
+})
 
 const recentPlayerRows = computed<RecentPlayerRow[]>(() => {
-  const aggregated = aggregatePlayerStats(historyStore.entries, playersStore.recentPlayers)
+  const aggregated = aggregatePlayerStats(historyStore.entries, playersStore.recentPlayers, leaderboardMode.value)
   const byId = new Map(aggregated.map(player => [player.id, player]))
 
   return playersStore.recentPlayers.map((player) => {
     const stats = byId.get(player.id)
     const matches = stats?.matches || 0
+
+    let averageDisplay = '-'
+    if (matches > 0 && stats) {
+      if (leaderboardMode.value === 'atc') {
+        const rate = stats.hitRate ?? 0
+        averageDisplay = `${(rate * 100).toFixed(0)}%`
+      } else {
+        averageDisplay = stats.average.toFixed(2)
+      }
+    }
 
     return {
       id: player.id,
@@ -201,7 +244,7 @@ const recentPlayerRows = computed<RecentPlayerRow[]>(() => {
       matches,
       wins: stats?.wins || 0,
       dartsThrown: stats?.dartsThrown || 0,
-      average: matches > 0 ? stats!.average.toFixed(2) : '-',
+      average: averageDisplay,
       lastPlayed: stats?.lastPlayed ? new Date(stats.lastPlayed).toLocaleDateString() : '-',
       actions: ''
     }

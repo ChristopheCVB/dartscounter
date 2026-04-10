@@ -2,7 +2,7 @@
   <section class="grid gap-4">
     <UPageHeader
       title="New Match"
-      description="Set your X01 rules, pick players, and start scoring."
+      description="Pick your game mode, configure the rules, and start scoring."
       headline="Match Setup"
       class="arcade-reveal"
     />
@@ -25,6 +25,7 @@
 </template>
 
 <script setup lang="ts">
+import type { GameSettings } from '~~/shared/types/darts'
 import MatchConfigForm from '~/components/setup/MatchConfigForm.vue'
 import { useMatchStore } from '~/stores/match'
 import { usePlayersStore } from '~/stores/players'
@@ -42,19 +43,21 @@ function discardCurrentMatch() {
 }
 
 function onSubmit(payload: {
-  startScore: 301 | 501
-  doubleIn: boolean
-  doubleOut: boolean
-  legsTarget: number
+  settings: GameSettings
   players: Array<{ name: string, color: string }>
 }) {
-  const { players, ...settings } = payload
+  const { players, settings } = payload
 
   if (activeMatchId.value) {
     matchStore.clearMatch()
   }
 
-  settingsStore.update(settings)
+  if (settings.mode === 'x01') {
+    settingsStore.update(settings)
+  } else {
+    settingsStore.updateAtcSettings(settings)
+  }
+
   const ensuredPlayers = playersStore.ensureMany(players)
   matchStore.startMatch(settings, ensuredPlayers)
 

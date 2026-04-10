@@ -3,6 +3,7 @@ import { applyDart, getThrowPoints, parsePointsToDart } from '../../../app/compo
 import type { X01Settings } from '../../../shared/types/darts'
 
 const settings: X01Settings = {
+  mode: 'x01',
   startScore: 501,
   doubleIn: false,
   doubleOut: true,
