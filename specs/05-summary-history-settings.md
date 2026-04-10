@@ -1,13 +1,11 @@
-# Day 3 Spec: Summary, History, Settings
+# Spec: Summary, History, Settings
 
 ## Status
 
 Implemented baseline with ongoing QA items.
-Last verified against code: 2026-03-01
+Last verified against code: 2026-04-10
 
 ## Outcome
-
-Current Day 3 outcomes:
 
 - Match completion produces a reliable summary.
 - History is persisted and browseable.

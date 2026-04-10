@@ -1,13 +1,11 @@
-# Day 2 Spec: Playable Match Loop
+# Spec: Playable Match Loop
 
 ## Status
 
 Implemented baseline with ongoing QA items.
-Last verified against code: 2026-03-01
+Last verified against code: 2026-04-10
 
 ## Outcome
-
-Current Day 2 outcomes:
 
 - User can create a match and play it.
 - Throw entry, turn rotation, bust/checkout, and undo work.

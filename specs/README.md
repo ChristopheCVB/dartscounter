@@ -20,9 +20,9 @@ Reading order:
 
 1. `specs/01-product-mvp.md`
 2. `specs/02-architecture-and-data-model.md`
-3. `specs/03-day1-bootstrap-and-engine.md`
-4. `specs/04-day2-playable-loop.md`
-5. `specs/05-day3-summary-history-settings.md`
+3. `specs/03-bootstrap-and-engine.md`
+4. `specs/04-playable-loop.md`
+5. `specs/05-summary-history-settings.md`
 6. `specs/06-keyboard-shortcuts-nuxt-ui.md`
 7. `specs/07-recent-players-and-lifetime-stats.md`
 

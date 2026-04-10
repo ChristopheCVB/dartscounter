@@ -2,7 +2,7 @@
 
 ## Status
 
-As-built reference for features added after Day 3.
+As-built reference for recent player management and lifetime stats features.
 Last verified against code: 2026-04-10
 
 ## Outcome

@@ -19,7 +19,7 @@ Concise map of the codebase for AI agents and developers. Authoritative behavior
   - **assets/css/main.css**, **app.config.ts** (Nuxt UI theme: primary orange, etc.), **constants/playerColors.ts**.
 - **shared/** — Non-Nuxt shared code:
   - **types/darts.ts** — Single source of truth for X01 types: `Multiplier`, `Segment`, `MatchStatus`, `DartInput`, `ThrowEvent`, `DartApplyResult`, `X01Settings`, `PlayerIdentity`, `Player`, `PlayerStats`, `MatchPlayer`, `Match`, `PlayerSummary`, `MatchSummary`.
-- **specs/** — Product and implementation specs (MVP, architecture, data model, day-by-day notes). See [specs/README.md](specs/README.md) for reading order.
+- **specs/** — Product and implementation specs (MVP, architecture, data model, feature implementation notes). See [specs/README.md](specs/README.md) for reading order.
 - **tests/** — Vitest: `unit/scoring/useScoringEngine.test.ts`, `unit/match/useMatchState.test.ts`.
 - **Config:** [nuxt.config.ts](nuxt.config.ts) — modules `@nuxt/ui`, `@pinia/nuxt`, `@vueuse/nuxt`; Pinia `storesDirs: ['app/stores/**']`; CSS from `~/assets/css/main.css`.
 
@@ -49,6 +49,6 @@ Concise map of the codebase for AI agents and developers. Authoritative behavior
 
 ## Agent guidance
 
-- **Behavior and scope:** Use [specs/](specs/) as source of truth (MVP, architecture, data model). Start with [specs/README.md](specs/README.md) for reading order; [specs/01-product-mvp.md](specs/01-product-mvp.md) and [specs/02-architecture-and-data-model.md](specs/02-architecture-and-data-model.md) for game behavior and structure; day-by-day specs (03–07) for implementation decisions.
+- **Behavior and scope:** Use [specs/](specs/) as source of truth (MVP, architecture, data model). Start with [specs/README.md](specs/README.md) for reading order; [specs/01-product-mvp.md](specs/01-product-mvp.md) and [specs/02-architecture-and-data-model.md](specs/02-architecture-and-data-model.md) for game behavior and structure; implementation specs (03–07) for feature-level decisions.
 - **New features:** Follow existing patterns (composables for logic, stores for app state, types in `shared/types/darts.ts`). Add or extend Vitest unit tests for scoring and match state changes.
 - **UI changes:** Prefer Nuxt UI primitives and existing layout; keep custom styles in `app/assets/css/main.css` and theme in `app.config.ts`.

@@ -1,4 +1,4 @@
-# Day 1 Spec: Bootstrap and Scoring Engine
+# Spec: Bootstrap and Scoring Engine
 
 ## Status
 
@@ -7,7 +7,7 @@ Last verified against code: 2026-04-10
 
 ## Outcome
 
-Day 1 baseline delivered:
+Implemented baseline:
 
 - App boots with Bun.
 - Nuxt UI and Pinia are wired.
