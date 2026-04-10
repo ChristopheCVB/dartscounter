@@ -3,13 +3,15 @@
 ## Status
 
 As-built architecture reference.
-Last verified against code: 2026-03-01
+Last verified against code: 2026-04-10
 
 ## 1) Tech Stack
 
 - Nuxt 4 + TypeScript
 - Nuxt UI
+- Tailwind CSS v4
 - Pinia
+- @vueuse/nuxt
 - Zod (form + schema validation)
 - @vueuse/sound (throw sounds)
 - canvas-confetti (checkout celebration)
@@ -33,6 +35,10 @@ app/
     useScoringEngine.ts
     useMatchState.ts
     usePersistence.ts
+    usePlayerStats.ts
+    useThrowSounds.ts
+  constants/
+    playerColors.ts
   layouts/default.vue
   pages/
     index.vue
@@ -45,6 +51,7 @@ app/
     match.ts
     settings.ts
     history.ts
+    players.ts
 shared/
   types/darts.ts
 tests/
@@ -56,20 +63,28 @@ tests/
 ## 3) Responsibility Split
 
 - `useScoringEngine.ts`
-  - Pure rule logic only.
+  - Pure rule logic only. Exports bare functions (not a Vue composable).
   - No UI or storage side effects.
 - `useMatchState.ts`
   - Turn orchestration using scoring engine.
   - Handles progression between players/turns.
 - `usePersistence.ts`
-  - Save/load active match, history, and settings.
-  - Versioned local keys and safe JSON fallback.
+  - Save/load active match, history, settings, and recent players.
+  - Versioned local keys (`dartcounter:v1:*`) and safe JSON fallback.
+- `usePlayerStats.ts`
+  - Pure utility (not a Vue composable). Exports bare functions.
+  - `aggregatePlayerStats()` groups `MatchSummary` entries by player and computes lifetime `AggregatedPlayerStats[]`.
+- `useThrowSounds.ts`
+  - Sound feedback via `@vueuse/sound`.
+  - Returns `{ playForThrow, playConfetti }`; respects `soundEnabled` from settings store.
 - `stores/match.ts`
   - Active match state and actions.
 - `stores/settings.ts`
   - User defaults for new matches.
 - `stores/history.ts`
   - Completed match summaries.
+- `stores/players.ts`
+  - Recent player identities (name + color) persisted across matches.
 - `app/layouts/default.vue`
   - App shell with Nuxt UI `UHeader` + `UMain`/`UContainer`.
 
@@ -92,14 +107,27 @@ tests/
 - Checkout result:
   - current leg ends immediately
 
-## 5) Core Data Shapes (Conceptual)
+## 5) Core Data Shapes
 
-- `Player`: id, name, color
-- `X01Settings`: startScore, doubleIn, doubleOut, legsTarget
-- `Throw`: playerId, turnIndex, dartIndex, segment, multiplier, points, timestamp
-- `Turn`: startScore, throws, endScore, isBust, isCheckout
-- `Match`: id, settings, status, players, currentPlayerIndex, legsWon, startedAt, finishedAt
-- `MatchSummary`: id, winner, duration, per-player stats, finishedAt
+**Type aliases:**
+- `Multiplier`: `1 | 2 | 3`
+- `Segment`: `0 | 1–20 | 25` (0 = miss, 25 = bull)
+- `MatchStatus`: `'setup' | 'in_progress' | 'finished'`
+
+**Interfaces:**
+- `DartInput`: segment + multiplier
+- `DartApplyResult`: result of `applyDart()` — points, scoredPoints, nextScore, nextOpened, isBust, isCheckout
+- `ThrowEvent`: DartInput + full metadata (id, playerId, turnIndex, dartIndex, points, scoredPoints, scoreBefore/After, openedBefore/After, isBust, isCheckout, timestamp)
+- `X01Settings`: startScore (301 | 501), doubleIn, doubleOut, legsTarget
+- `PlayerIdentity`: id, name, color — base identity; `Player` extends it
+- `Player`: extends `PlayerIdentity`
+- `PlayerStats`: per-match stats counters — dartsThrown, busts, checkoutAttempts, checkoutsMade, scoredPoints, firstNinePoints, firstNineDarts
+- `MatchPlayer`: Player + score, hasOpened, legsWon, stats: PlayerStats
+- `Match`: id, settings, status, players[], currentPlayerIndex, currentTurnIndex, currentTurnStartScore, currentTurnOpenedAtStart, currentTurnDarts[], throws[], startedAt, finishedAt, winnerId
+- `PlayerSummary`: post-match per-player stats (averages, checkout %, etc.)
+- `MatchSummary`: id, matchId, finishedAt, durationMs, mode, players: PlayerSummary[], winnerId, winnerName
+
+> Note: turns are not a standalone type — turn state is tracked via `currentTurn*` fields in `Match`.
 
 ## 6) UI/UX Direction
 

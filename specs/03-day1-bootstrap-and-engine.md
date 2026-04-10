@@ -3,7 +3,7 @@
 ## Status
 
 Implemented baseline.
-Last verified against code: 2026-03-01
+Last verified against code: 2026-04-10
 
 ## Outcome
 
@@ -49,4 +49,5 @@ Day 1 baseline delivered:
   - `app/stores/match.ts`
   - `app/stores/settings.ts`
   - `app/stores/history.ts`
+  - `app/stores/players.ts`
 - Route skeleton from this phase is now fully playable and integrated.

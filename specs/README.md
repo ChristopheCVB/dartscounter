@@ -2,7 +2,7 @@
 
 This directory tracks the product/implementation specs for DartCounter as-built.
 
-Last verified against code: 2026-03-01
+Last verified against code: 2026-04-10
 
 Current baseline:
 
@@ -24,5 +24,6 @@ Reading order:
 4. `specs/04-day2-playable-loop.md`
 5. `specs/05-day3-summary-history-settings.md`
 6. `specs/06-keyboard-shortcuts-nuxt-ui.md`
+7. `specs/07-recent-players-and-lifetime-stats.md`
 
 Use these docs as source-of-truth for current behavior plus targeted follow-up work.
