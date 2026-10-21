@@ -6,9 +6,14 @@
       class="header-shell"
       :ui="{
         root: 'backdrop-blur-xl border-b border-default/60 bg-[color-mix(in_srgb,var(--ui-bg)_72%,transparent)]',
-        title: 'arcade-title text-sm tracking-[0.2em]'
+        title: 'arcade-title items-center text-sm tracking-[0.2em]'
       }"
     >
+      <template #title>
+        <img src="/logo.svg" alt="" width="32" height="32" class="size-8 shrink-0">
+        DartCounter
+      </template>
+
       <template #right>
         <UButton
           v-for="item in navItems"
