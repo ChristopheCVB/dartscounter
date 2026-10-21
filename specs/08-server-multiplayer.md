@@ -21,6 +21,9 @@ This specification supersedes the localStorage/no-auth requirements in specifica
 - Any current-match participant may undo the latest dart, including a winning dart until the next match starts. Spectators cannot undo. Undo is persisted, bounded to the last 200 darts, and restores turns, legs, statistics, and completion atomically.
 - The owner can abandon a running match without a winner or completed statistics. A room is reusable after completion or abandonment. Starting another match locks previous results.
 - One-device play uses the same server implementation, with one account controlling its selected local players.
+- Lobby errors use toasts without shifting the layout; connection status and pending-action recovery remain visible. Repeated identical connection failures do not stack notifications.
+- Saved rules are visible to everyone in the lobby and above the match scoreboard, including straight/double in and out, start score and legs target for X01, or target order and Fast Forward for Around the Clock.
+- Each player card shows recommendations from that player's own state: remaining darts for the active player, or a fresh three-dart turn for waiting players. Recommendations disappear after completion or abandonment; the current-turn timeline shows thrown darts.
 
 ## Authority and synchronization
 

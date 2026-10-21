@@ -1,7 +1,14 @@
 <template>
   <section v-if="match" :aria-busy="matchStore.pending" class="grid items-start gap-5 lg:grid-cols-[2fr_1fr]">
     <div class="grid gap-4 arcade-reveal">
-      <MatchScoreboard :players="match.players" :active-index="match.currentPlayerIndex" :settings="match.settings" />
+      <MatchRulesSummary :settings="match.settings" />
+      <MatchScoreboard
+        :players="match.players"
+        :active-index="match.currentPlayerIndex"
+        :settings="match.settings"
+        :darts-used="match.currentTurnDarts.length"
+        :status="match.status"
+      />
       <MatchThrowPad
         :multiplier="matchStore.selectedMultiplier"
         :numeric-buffer="match.settings.mode === 'atc' ? '' : matchStore.numericBuffer"
@@ -64,10 +71,7 @@
 
       <MatchTurnTimeline
         :darts="match.currentTurnDarts"
-        :score="match.players[match.currentPlayerIndex]?.score || 0"
-        :has-opened="match.players[match.currentPlayerIndex]?.hasOpened ?? true"
         :settings="match.settings"
-        :atc-target="match.players[match.currentPlayerIndex]?.atcTarget"
       />
     </div>
 
