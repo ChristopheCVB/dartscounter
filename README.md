@@ -108,7 +108,7 @@ Set `REQUEST_LOGGING_ENABLED=true` to enable tagged consola request logs, adapte
 The workflows follow [line-learner](https://github.com/ChristopheCVB/line-learner/tree/main/.github/workflows):
 
 - Pull requests targeting `main` run lint, typecheck, and all test projects, then validate the Docker build. The workflow also supports manual runs. Images are not published.
-- CI checks the PostgreSQL connection before testing. When the self-hosted runner runs inside a Coolify container, the temporary database service joins the runner's Docker network; host-based runners use the published loopback port.
+- CI checks the PostgreSQL connection before testing. With Docker-in-Docker, it uses the daemon hostname from `DOCKER_HOST` (`docker` in the runner's Compose file) and the published service port; local Docker daemons use the published loopback port.
 - Pushes to `main` run Release Please. Conventional commits such as `feat:` and `fix:` produce a release PR with version and changelog updates; merging that PR creates a release and calls the deployment workflow directly.
 - Deploy can also be run manually from `main`, with an optional force redeploy. It waits up to 600 seconds for Coolify.
 

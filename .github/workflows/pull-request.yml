@@ -70,21 +70,11 @@ jobs:
       - name: Check test database connection
         if: matrix.check == 'test'
         env:
-          POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
           POSTGRES_PORT: ${{ job.services.postgres.ports[5432] }}
         run: |
-          database_host=127.0.0.1
-          database_port="$POSTGRES_PORT"
-          if [ -f /.dockerenv ]; then
-            # Attach the disposable service to the Coolify runner's network, leaving the runner unchanged.
-            runner_network="$(docker inspect --format '{{range $name, $network := .NetworkSettings.Networks}}{{$name}}{{"\n"}}{{end}}' "$HOSTNAME" | head -n 1)"
-            if [ "$runner_network" != host ]; then
-              docker network connect "$runner_network" "$POSTGRES_CONTAINER"
-              database_host="$(docker inspect --format "{{(index .NetworkSettings.Networks \"$runner_network\").IPAddress}}" "$POSTGRES_CONTAINER")"
-              database_port=5432
-            fi
-          fi
-          export TEST_DATABASE_URL="postgresql://postgres:postgres@${database_host}:${database_port}/dartscounter_test"
+          # Docker-in-Docker publishes service ports on the daemon sidecar, not the runner.
+          database_host="$(bun -e 'const host = process.env.DOCKER_HOST; console.log(host?.startsWith("tcp://") ? new URL(host).hostname : "127.0.0.1")')"
+          export TEST_DATABASE_URL="postgresql://postgres:postgres@${database_host}:${POSTGRES_PORT}/dartscounter_test"
           bun -e 'import { Pool } from "pg"; const pool = new Pool({ connectionString: process.env.TEST_DATABASE_URL, connectionTimeoutMillis: 5000 }); try { await pool.query("SELECT 1") } finally { await pool.end() }'
           printf 'TEST_DATABASE_URL=%s\n' "$TEST_DATABASE_URL" >> "$GITHUB_ENV"
       - name: Get Playwright version
