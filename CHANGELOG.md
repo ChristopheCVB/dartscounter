@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.0.0](https://github.com/ChristopheCVB/dartscounter/compare/v1.0.0...v2.0.0) (2026-10-21)
+
+
+### ⚠ BREAKING CHANGES
+
+* add PostgreSQL-backed multiplayer rooms and authentication ([#4](https://github.com/ChristopheCVB/dartscounter/issues/4))
+
+### Features
+
+* add PostgreSQL-backed multiplayer rooms and authentication ([#4](https://github.com/ChristopheCVB/dartscounter/issues/4)) ([f58ea9d](https://github.com/ChristopheCVB/dartscounter/commit/f58ea9df69e1fb41970aeacda67f96af25126ab1))
+
 ## 1.0.0 (2026-10-21)
 
 
