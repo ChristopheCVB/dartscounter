@@ -84,7 +84,7 @@ docker build -t dartscounter .
 docker run --rm -p 3000:3000 dartscounter
 ```
 
-The multistage image builds with Bun 1.4.3 and contains only the production `.output` directory and the Bun runtime. It listens on port 3000. Matches and settings remain in each browser's localStorage; the container needs no database or volume.
+The multistage image builds with Bun 1.4.3 and contains the production `.output` directory, the Bun runtime, and `curl` for Coolify's HTTP health checks. It listens on port 3000. Configure Coolify's HTTP health check to use port 3000 and path `/`. Matches and settings remain in each browser's localStorage; the container needs no database or volume.
 
 ## GitHub Actions and releases
 
