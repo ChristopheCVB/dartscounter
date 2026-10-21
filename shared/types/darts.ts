@@ -65,7 +65,7 @@ export interface MatchPlayer extends Player {
   stats: PlayerStats
 }
 
-export type MatchStatus = 'setup' | 'in_progress' | 'finished'
+export type MatchStatus = 'setup' | 'in_progress' | 'finished' | 'abandoned'
 
 export interface Match {
   id: string

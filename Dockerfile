@@ -16,6 +16,8 @@ RUN apt-get update \
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV PORT=3000
+ENV NITRO_BUN_IDLE_TIMEOUT=60
 COPY --from=build /app/.output /app/.output
+COPY --from=build /app/server/db/migrations /app/server/db/migrations
 EXPOSE 3000/tcp
 ENTRYPOINT ["bun", ".output/server/index.mjs"]

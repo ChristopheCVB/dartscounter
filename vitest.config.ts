@@ -9,6 +9,15 @@ export default defineConfig({
     projects: [
       {
         test: {
+          name: 'integration',
+          include: ['tests/integration/**/*.test.ts'],
+          environment: 'node',
+          testTimeout: 30_000,
+          sequence: { groupOrder: 2 },
+        },
+      },
+      {
+        test: {
           name: 'unit',
           include: ['tests/unit/**/*.test.ts'],
           environment: 'node',
@@ -31,7 +40,9 @@ export default defineConfig({
           name: 'e2e',
           include: ['tests/e2e/**/*.test.ts'],
           environment: 'node',
-          sequence: { groupOrder: 2 },
+          // Hydration can finish before account, match, and SSE requests on the single-CPU runner.
+          expect: { poll: { timeout: 10_000 } },
+          sequence: { groupOrder: 3 },
         },
       },
     ],

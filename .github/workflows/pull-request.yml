@@ -39,6 +39,18 @@ jobs:
     name: ${{ matrix.check }}
     runs-on: self-hosted
     needs: setup
+    services:
+      postgres:
+        image: ${{ matrix.check == 'test' && 'postgres:18' || '' }}
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: dartscounter_test
+        ports:
+          - 5432/tcp
+        options: >-
+          --health-cmd "pg_isready -U postgres -d dartscounter_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
     strategy:
       fail-fast: false
       matrix:
@@ -55,6 +67,16 @@ jobs:
           key: bun-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock', 'package.json') }}
       - name: Install dependencies
         run: bun install --frozen-lockfile
+      - name: Check test database connection
+        if: matrix.check == 'test'
+        env:
+          POSTGRES_PORT: ${{ job.services.postgres.ports[5432] }}
+        run: |
+          # Docker-in-Docker publishes service ports on the daemon sidecar, not the runner.
+          database_host="$(bun -e 'const host = process.env.DOCKER_HOST; console.log(host?.startsWith("tcp://") ? new URL(host).hostname : "127.0.0.1")')"
+          export TEST_DATABASE_URL="postgresql://postgres:postgres@${database_host}:${POSTGRES_PORT}/dartscounter_test"
+          bun -e 'import { Pool } from "pg"; const pool = new Pool({ connectionString: process.env.TEST_DATABASE_URL, connectionTimeoutMillis: 5000 }); try { await pool.query("SELECT 1") } finally { await pool.end() }'
+          printf 'TEST_DATABASE_URL=%s\n' "$TEST_DATABASE_URL" >> "$GITHUB_ENV"
       - name: Get Playwright version
         if: matrix.check == 'test'
         id: playwright

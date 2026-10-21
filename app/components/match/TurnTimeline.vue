@@ -39,7 +39,7 @@
 
 <script setup lang="ts">
 import type { GameSettings, ThrowEvent } from '~~/shared/types/darts'
-import { formatAtcTarget } from '~/composables/useAtcEngine'
+import { formatAtcTarget } from '~~/shared/utils/atcEngine'
 
 type RecommendedDart = {
   label: string

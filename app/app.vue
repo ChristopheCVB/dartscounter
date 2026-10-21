@@ -8,20 +8,13 @@
 </template>
 
 <script setup lang="ts">
-import { useHistoryStore } from '~/stores/history'
-import { useMatchStore } from '~/stores/match'
-import { usePlayersStore } from '~/stores/players'
-import { useSettingsStore } from '~/stores/settings'
+import { useAccountStore } from '~/stores/account'
 
-const settingsStore = useSettingsStore()
-const historyStore = useHistoryStore()
-const matchStore = useMatchStore()
-const playersStore = usePlayersStore()
-
-onMounted(() => {
-  settingsStore.load()
-  historyStore.load()
-  matchStore.loadActiveMatch()
-  playersStore.load()
-})
+const auth = useAuth()
+const session = auth.useSession()
+const account = useAccountStore()
+watch(() => session.value.data?.user.id, id => {
+  if (id) void account.load()
+  else account.clear()
+}, { immediate: true })
 </script>
