@@ -25,6 +25,7 @@ describe('local matches', { timeout: 60_000 }, async () => {
   })
 
   let page: NuxtPage
+  let clientIp = 0
 
   afterEach(async () => {
     await page?.context().close()
@@ -55,6 +56,8 @@ describe('local matches', { timeout: 60_000 }, async () => {
   async function authenticatedPage(name: string) {
     const user = await testUser(name)
     const target = await createPage('/signin')
+    // Isolate simulated clients so fast browser runs do not share an auth rate-limit bucket.
+    await target.context().setExtraHTTPHeaders({ 'X-Forwarded-For': `192.0.2.${++clientIp}` })
     await target.context().addCookies([{ ...user.cookie, url: url('/') }])
     return { page: target, user }
   }
@@ -165,14 +168,17 @@ describe('local matches', { timeout: 60_000 }, async () => {
     await page.getByRole('heading', { name: 'Throw Pad', exact: true }).click()
     await page.keyboard.press('Enter')
     await expect.poll(() => activeScore().textContent()).toBe('481')
-    expect(await buffer.inputValue()).toBe('')
+    await expect.poll(() => buffer.inputValue()).toBe('')
     await page.getByRole('tab', { name: 'Interactive Target', exact: true }).click()
     await page.keyboard.press('m')
     await expect.poll(() => page.getByText('Turn 1 · Darts 2/3', { exact: true }).count()).toBe(1)
+    await expect.poll(() => page.getByRole('button', { name: 'Undo', exact: true }).isEnabled()).toBe(true)
     await page.keyboard.press('u')
     await expect.poll(() => page.getByText('Turn 1 · Darts 1/3', { exact: true }).count()).toBe(1)
+    await expect.poll(() => page.getByRole('button', { name: 'Miss', exact: true }).isEnabled()).toBe(true)
     await page.keyboard.press('b')
     await expect.poll(() => activeScore().textContent()).toBe('456')
+    await expect.poll(() => page.getByRole('button', { name: 'Miss', exact: true }).isEnabled()).toBe(true)
     await page.getByRole('button', { name: 'Miss', exact: true }).focus()
     await page.keyboard.press('Enter')
     await expect.poll(() => page.getByText('Turn 2 · Darts 0/3', { exact: true }).count()).toBe(1)
