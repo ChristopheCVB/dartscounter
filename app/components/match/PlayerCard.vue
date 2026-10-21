@@ -1,5 +1,5 @@
 <template>
-  <UCard :style="cardStyle" class="overflow-hidden transition duration-200">
+  <UCard as="article" :aria-label="player.name" :style="cardStyle" class="overflow-hidden transition duration-200">
     <div class="grid gap-1">
       <div class="flex items-center justify-between gap-2">
         <p class="m-0 flex items-center gap-1.5 text-sm" :style="{ color: playerNameColor }">
@@ -18,20 +18,33 @@
         <p class="m-0 text-sm text-muted">Legs {{ player.legsWon }}</p>
       </template>
     </div>
+    <UAlert
+      v-if="showRecommendation"
+      :title="active ? 'This turn' : 'Next turn'"
+      :description="recommendation"
+      :color="active ? 'warning' : 'neutral'"
+      variant="soft"
+      icon="i-lucide-target"
+      class="mt-3"
+    />
   </UCard>
 </template>
 
 <script setup lang="ts">
 import type { GameSettings, MatchPlayer } from '~~/shared/types/darts'
 import { formatAtcTarget } from '~~/shared/utils/atcEngine'
+import { getDartRecommendation } from '~~/shared/utils/dartRecommendation'
 
 const props = defineProps<{
   player: MatchPlayer
   active: boolean
   settings: GameSettings
+  dartsLeft: number
+  showRecommendation: boolean
 }>()
 
 const isAtc = computed(() => props.settings.mode === 'atc')
+const recommendation = computed(() => getDartRecommendation(props.player, props.settings, props.dartsLeft))
 
 const atcTargetLabel = computed(() => {
   const target = props.player.atcTarget ?? 1

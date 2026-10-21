@@ -1,9 +1,9 @@
 <template>
   <section class="grid gap-4">
     <UPageHeader title="Game room" :description="room ? `Invite code: ${room.code}` : 'Connecting…'" />
-    <UAlert v-if="store.error" color="error" :title="store.error" />
     <UButton v-if="store.uncertain" :loading="store.pending" @click="store.retryUncertain">Resolve pending action</UButton>
     <template v-if="room">
+      <MatchRulesSummary :settings="room.settings" />
       <UCard>
         <div class="flex flex-wrap items-center gap-3">
           <UBadge :color="store.connected ? 'success' : 'warning'">{{ store.connected ? 'Live' : 'Reconnecting' }}</UBadge>
@@ -63,6 +63,10 @@ const route = useRoute()
 const store = useMatchStore()
 const account = useAccountStore()
 const players = usePlayersStore()
+const toast = useToast()
+watch(() => store.error, error => {
+  if (error) toast.add({ id: 'room-error', title: 'Room notification', description: error, color: 'error' })
+}, { immediate: true })
 const id = String(route.params.id)
 const room = computed(() => store.room?.id === id ? store.room : null)
 const owner = computed(() => room.value?.ownerId === account.userId)

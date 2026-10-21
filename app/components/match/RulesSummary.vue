@@ -1,0 +1,24 @@
+<template>
+  <UCard as="section" aria-label="Match rules">
+    <h2 class="m-0 mb-3 arcade-title text-sm">Match rules</h2>
+    <div class="flex flex-wrap gap-2">
+      <template v-if="settings.mode === 'x01'">
+        <UBadge color="neutral" variant="soft">X01 · {{ settings.startScore }}</UBadge>
+        <UBadge color="neutral" variant="soft">{{ settings.doubleIn ? 'Double in' : 'Straight in' }}</UBadge>
+        <UBadge color="neutral" variant="soft">{{ settings.doubleOut ? 'Double out' : 'Straight out' }}</UBadge>
+        <UBadge color="neutral" variant="soft">First to {{ settings.legsTarget }} {{ settings.legsTarget === 1 ? 'leg' : 'legs' }}</UBadge>
+      </template>
+      <template v-else>
+        <UBadge color="neutral" variant="soft">Around the Clock</UBadge>
+        <UBadge color="neutral" variant="soft">1–20, then Bull</UBadge>
+        <UBadge color="neutral" variant="soft">Fast Forward {{ settings.fastForward ? 'on' : 'off' }}</UBadge>
+      </template>
+    </div>
+  </UCard>
+</template>
+
+<script setup lang="ts">
+import type { GameSettings } from '~~/shared/types/darts'
+
+defineProps<{ settings: GameSettings }>()
+</script>

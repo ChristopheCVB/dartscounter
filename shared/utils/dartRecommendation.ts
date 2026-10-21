@@ -1,0 +1,137 @@
+import type { GameSettings, MatchPlayer } from '../types/darts'
+import { formatAtcTarget } from './atcEngine'
+
+type RecommendedDart = {
+  label: string
+  points: number
+  isDouble: boolean
+}
+
+const allDarts: RecommendedDart[] = [
+  ...Array.from({ length: 20 }, (_, idx) => {
+    const segment = 20 - idx
+    return { label: `T${segment}`, points: segment * 3, isDouble: false }
+  }),
+  ...Array.from({ length: 20 }, (_, idx) => {
+    const segment = 20 - idx
+    return { label: `D${segment}`, points: segment * 2, isDouble: true }
+  }),
+  { label: 'DB', points: 50, isDouble: true },
+  { label: 'SB', points: 25, isDouble: false },
+  ...Array.from({ length: 20 }, (_, idx) => {
+    const segment = 20 - idx
+    return { label: `S${segment}`, points: segment, isDouble: false }
+  })
+]
+
+const finalDoubleDarts: RecommendedDart[] = [
+  { label: 'DB', points: 50, isDouble: true },
+  ...Array.from({ length: 20 }, (_, idx) => {
+    const segment = 20 - idx
+    return { label: `D${segment}`, points: segment * 2, isDouble: true }
+  })
+]
+
+export function getDartRecommendation(
+  player: Pick<MatchPlayer, 'score' | 'hasOpened' | 'atcTarget'>,
+  settings: GameSettings,
+  dartsLeft: number
+): string {
+  if (dartsLeft === 0) {
+    return 'Turn complete. Undo to adjust or wait for auto-advance.'
+  }
+
+  if (settings.mode === 'atc') {
+    const target = player.atcTarget ?? 1
+    if (target > 21) {
+      return 'All targets cleared!'
+    }
+    const targetLabel = formatAtcTarget(target)
+    if (target > 20) {
+      return `Hit the Bull to win!`
+    }
+    if (settings.fastForward) {
+      return `Hit segment ${targetLabel}. Doubles skip 2, trebles skip 3.`
+    }
+    return `Hit segment ${targetLabel}.`
+  }
+
+  if (settings.doubleIn && !player.hasOpened) {
+    return 'Open required: hit any double to start scoring (D20 is a strong opener).'
+  }
+
+  const route = findBestRoute(player.score, dartsLeft, settings.doubleOut)
+  if (route) {
+    return `Ideal darts: ${route.join(' • ')}`
+  }
+
+  if (settings.doubleOut) {
+    const bogeyScores = new Set([169, 168, 166, 165, 163, 162, 159])
+    if (bogeyScores.has(player.score)) {
+      return 'No direct checkout from this score. Set up a finish like D20 (40) or D16 (32).'
+    }
+    if (player.score > 170) {
+      return 'No checkout this turn. Prioritize setup to leave a comfortable double (40, 32, or 24).'
+    }
+    return 'No finish in remaining darts. Set up a preferred out for your next turn.'
+  }
+
+  if (player.score > dartsLeft * 60) {
+    return 'No finish this turn. Push scoring pace with high trebles.'
+  }
+
+  return 'Build your route: prioritize targets that keep your next dart simple.'
+}
+
+function findBestRoute(score: number, dartsLeft: number, requireDoubleOut: boolean): string[] | null {
+  if (score <= 0 || dartsLeft <= 0 || score > dartsLeft * 60) {
+    return null
+  }
+
+  for (let routeLength = 1; routeLength <= dartsLeft; routeLength += 1) {
+    const route = searchRoute(score, routeLength, requireDoubleOut)
+    if (route) {
+      return route
+    }
+  }
+
+  return null
+}
+
+function searchRoute(score: number, routeLength: number, requireDoubleOut: boolean): string[] | null {
+  const path: string[] = []
+
+  const walk = (remaining: number, step: number): boolean => {
+    if (remaining < 0) {
+      return false
+    }
+
+    if (step === routeLength) {
+      return remaining === 0
+    }
+
+    const isLastDart = step === routeLength - 1
+    const candidates = requireDoubleOut && isLastDart ? finalDoubleDarts : allDarts
+
+    for (const dart of candidates) {
+      if (dart.points > remaining) {
+        continue
+      }
+
+      const nextRemaining = remaining - dart.points
+      if (isLastDart && nextRemaining !== 0) {
+        continue
+      }
+
+      path.push(dart.label)
+      if (walk(nextRemaining, step + 1)) {
+        return true
+      }
+      path.pop()
+    }
+
+    return false
+  }
+
+  return walk(score, 0) ? [...path] : null
+}
