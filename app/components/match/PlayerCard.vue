@@ -1,22 +1,14 @@
 <template>
-  <UCard as="article" :aria-label="player.name" :style="cardStyle" class="overflow-hidden transition duration-200">
-    <div class="grid gap-1">
-      <div class="flex items-center justify-between gap-2">
-        <p class="m-0 flex items-center gap-1.5 text-sm" :style="{ color: playerNameColor }">
-          <span class="player-dot" :style="{ background: player.color }" />
-          {{ player.name }}
+  <UCard as="article" :aria-label="player.name" :aria-current="active ? 'true' : undefined" :style="cardStyle" class="min-w-0 overflow-hidden transition duration-200" :ui="{ body: 'p-3 sm:p-3' }">
+    <div class="flex items-center justify-between gap-3">
+      <div class="flex min-w-0 items-center gap-1.5">
+        <span class="size-2 shrink-0 rounded-full" :style="{ background: player.color }" />
+        <p class="m-0 min-w-0 text-sm wrap-anywhere" :style="{ color: playerNameColor }">
+          <span>{{ player.name }}</span><span class="text-xs text-muted"> · {{ isAtc ? atcProgress : `${player.legsWon} ${player.legsWon === 1 ? 'leg' : 'legs'}` }}</span>
         </p>
-        <UBadge :color="active ? 'warning' : 'neutral'" variant="soft" size="sm">{{ active ? 'Throwing' : 'Waiting' }}</UBadge>
       </div>
 
-      <template v-if="isAtc">
-        <p class="mx-0 my-[0.1rem] text-[2rem] font-extrabold leading-none">{{ atcTargetLabel }}</p>
-        <p class="m-0 text-sm text-muted">{{ atcProgress }}</p>
-      </template>
-      <template v-else>
-        <p class="mx-0 my-[0.1rem] text-[2rem] font-extrabold leading-none">{{ player.score }}</p>
-        <p class="m-0 text-sm text-muted">Legs {{ player.legsWon }}</p>
-      </template>
+      <p class="m-0 shrink-0 text-2xl font-extrabold leading-none tabular-nums">{{ isAtc ? atcTargetLabel : player.score }}</p>
     </div>
     <UAlert
       v-if="showRecommendation"
@@ -25,7 +17,8 @@
       :color="active ? 'warning' : 'neutral'"
       variant="soft"
       icon="i-lucide-target"
-      class="mt-3"
+      class="mt-2"
+      :ui="{ root: 'p-2 gap-2', icon: 'size-4', wrapper: 'block wrap-anywhere', title: 'inline text-xs', description: 'inline text-xs mt-0 ms-1' }"
     />
   </UCard>
 </template>
@@ -54,7 +47,7 @@ const atcTargetLabel = computed(() => {
 const atcProgress = computed(() => {
   const target = props.player.atcTarget ?? 1
   const done = Math.min(target - 1, 21)
-  return `${done} / 21`
+  return `${done}/21`
 })
 
 const cardStyle = computed(() => ({
@@ -69,12 +62,3 @@ const cardStyle = computed(() => ({
 
 const playerNameColor = computed(() => `color-mix(in srgb, ${props.player.color} 72%, white)`)
 </script>
-
-<style scoped>
-.player-dot {
-  display: inline-block;
-  width: 0.56rem;
-  height: 0.56rem;
-  border-radius: 999px;
-}
-</style>

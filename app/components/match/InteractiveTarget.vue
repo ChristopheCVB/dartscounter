@@ -129,8 +129,6 @@ function doubleTripleClass(index: number) {
 
 <style scoped>
 .target-wrap {
-  width: min(100%, 460px);
-  margin: 0 auto;
   padding: 0.35rem;
   border-radius: 16px;
   background: radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.1), rgba(0, 0, 0, 0.1));
@@ -173,15 +171,12 @@ function doubleTripleClass(index: number) {
 }
 
 .ring-accent-red,
-.ring-bull-outer {
+.ring-bull-inner {
   fill: #c83241;
 }
 
-.ring-accent-green {
-  fill: #2ea56e;
-}
-
-.ring-bull-inner {
+.ring-accent-green,
+.ring-bull-outer {
   fill: #2ea56e;
 }
 
@@ -192,8 +187,7 @@ function doubleTripleClass(index: number) {
 .ring-bull-outer:hover,
 .ring-bull-inner:hover {
   fill: color-mix(in srgb, var(--target-hover-color) 30%, transparent);
-  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--target-hover-color) 55%, transparent));
-  transform: scale(1.018);
+  filter: drop-shadow(0 0 2px color-mix(in srgb, var(--target-hover-color) 55%, transparent));
 }
 
 .ring-single-black:hover,

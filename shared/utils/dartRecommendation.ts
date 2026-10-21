@@ -38,49 +38,49 @@ export function getDartRecommendation(
   dartsLeft: number
 ): string {
   if (dartsLeft === 0) {
-    return 'Turn complete. Undo to adjust or wait for auto-advance.'
+    return 'Turn: complete'
   }
 
   if (settings.mode === 'atc') {
     const target = player.atcTarget ?? 1
     if (target > 21) {
-      return 'All targets cleared!'
+      return 'Targets: cleared'
     }
     const targetLabel = formatAtcTarget(target)
     if (target > 20) {
-      return `Hit the Bull to win!`
+      return 'Finish: Bull'
     }
     if (settings.fastForward) {
-      return `Hit segment ${targetLabel}. Doubles skip 2, trebles skip 3.`
+      return `Aim: ${targetLabel} · double +2 / treble +3`
     }
-    return `Hit segment ${targetLabel}.`
+    return `Aim: ${targetLabel}`
   }
 
   if (settings.doubleIn && !player.hasOpened) {
-    return 'Open required: hit any double to start scoring (D20 is a strong opener).'
+    return 'Open: any double'
   }
 
   const route = findBestRoute(player.score, dartsLeft, settings.doubleOut)
   if (route) {
-    return `Ideal darts: ${route.join(' • ')}`
+    return `Finish: ${route.join(' • ')}`
   }
 
   if (settings.doubleOut) {
     const bogeyScores = new Set([169, 168, 166, 165, 163, 162, 159])
     if (bogeyScores.has(player.score)) {
-      return 'No direct checkout from this score. Set up a finish like D20 (40) or D16 (32).'
+      return 'Setup: leave D20 / D16'
     }
     if (player.score > 170) {
-      return 'No checkout this turn. Prioritize setup to leave a comfortable double (40, 32, or 24).'
+      return 'Setup: leave D20 / D16 / D12'
     }
-    return 'No finish in remaining darts. Set up a preferred out for your next turn.'
+    return 'Setup: leave a double'
   }
 
   if (player.score > dartsLeft * 60) {
-    return 'No finish this turn. Push scoring pace with high trebles.'
+    return 'Score: aim for high trebles'
   }
 
-  return 'Build your route: prioritize targets that keep your next dart simple.'
+  return 'Score: keep the next dart simple'
 }
 
 function findBestRoute(score: number, dartsLeft: number, requireDoubleOut: boolean): string[] | null {

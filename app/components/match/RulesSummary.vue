@@ -1,5 +1,5 @@
 <template>
-  <UCard as="section" aria-label="Match rules">
+  <component :is="embedded ? 'section' : UCard" :as="embedded ? undefined : 'section'" aria-label="Match rules">
     <h2 class="m-0 mb-3 arcade-title text-sm">Match rules</h2>
     <div class="flex flex-wrap gap-2">
       <template v-if="settings.mode === 'x01'">
@@ -14,11 +14,12 @@
         <UBadge color="neutral" variant="soft">Fast Forward {{ settings.fastForward ? 'on' : 'off' }}</UBadge>
       </template>
     </div>
-  </UCard>
+  </component>
 </template>
 
 <script setup lang="ts">
 import type { GameSettings } from '~~/shared/types/darts'
+import { UCard } from '#components'
 
-defineProps<{ settings: GameSettings }>()
+defineProps<{ settings: GameSettings, embedded?: boolean }>()
 </script>

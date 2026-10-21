@@ -26,8 +26,8 @@
           <UCheckbox v-for="player in players.recentPlayers" :key="player.id" :label="player.name" :model-value="selection.includes(player.id)" :disabled="disabled" @update:model-value="toggle(player.id)" />
         </div>
         <form class="mt-4 flex flex-wrap gap-2" @submit.prevent="addGuest">
-          <UInput v-model="guestName" placeholder="Guest name" aria-label="Guest name" maxlength="24" required />
-          <UButton type="submit" color="neutral" variant="soft">Add guest</UButton>
+          <UInput v-model="guestName" placeholder="Guest name" aria-label="Guest name" maxlength="24" :disabled="disabled" required />
+          <UButton type="submit" color="neutral" variant="soft" :disabled="disabled" :loading="addingGuest">Add guest</UButton>
         </form>
         <div class="mt-4 flex gap-3">
           <UButton :disabled="disabled" @click="saveRoster">Save roster</UButton>
@@ -71,7 +71,8 @@ const id = String(route.params.id)
 const room = computed(() => store.room?.id === id ? store.room : null)
 const owner = computed(() => room.value?.ownerId === account.userId)
 const running = computed(() => room.value?.match?.status === 'in_progress')
-const disabled = computed(() => !store.connected || store.pending || !!store.uncertain)
+const addingGuest = ref(false)
+const disabled = computed(() => !store.connected || store.pending || !!store.uncertain || addingGuest.value)
 const me = computed(() => room.value?.members.find(m => m.userId === account.userId))
 const selection = ref<string[]>([])
 const guestName = ref('')
@@ -97,7 +98,14 @@ function toggle(id: string) { selection.value = selection.value.includes(id) ? s
 function saveRoster() { return store.act({ type: 'roster', playerIds: selection.value }) }
 function saveRules() { return store.act({ type: 'settings', settings: draftRules.value }) }
 async function addGuest() {
-  if (await players.addRecentPlayer(guestName.value)) guestName.value = ''
+  if (disabled.value) return
+  addingGuest.value = true
+  try {
+    const result = await players.addRecentPlayer(guestName.value)
+    if (!result) return
+    selection.value = [...new Set([...selection.value, ...result.selected.map(player => player.id)])]
+    if (await saveRoster()) guestName.value = ''
+  } finally { addingGuest.value = false }
 }
 onMounted(async () => { await account.load(); await store.connect(id) })
 onBeforeUnmount(() => store.disconnect())

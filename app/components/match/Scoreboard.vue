@@ -1,5 +1,5 @@
 <template>
-  <section class="grid gap-4 grid-cols-[repeat(auto-fit,minmax(160px,1fr))]">
+  <section aria-label="Players" class="grid min-w-0 gap-2">
     <MatchPlayerCard
       v-for="(player, idx) in players"
       :key="player.id"
