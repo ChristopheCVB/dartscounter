@@ -1,7 +1,7 @@
 <template>
   <div>
     <UHeader
-      title="DartCounter"
+      title="DartsCounter"
       to="/"
       class="header-shell"
       :ui="{
@@ -11,10 +11,12 @@
     >
       <template #title>
         <img src="/logo.svg" alt="" width="32" height="32" class="size-8 shrink-0">
-        DartCounter
+        DartsCounter
       </template>
 
       <template #right>
+        <UButton v-if="session.data?.user" color="neutral" variant="ghost" @click="signOut">Sign out</UButton>
+        <UButton v-else to="/signin" color="neutral" variant="ghost">Sign in</UButton>
         <UButton
           v-for="item in navItems"
           :key="item.to"
@@ -55,9 +57,18 @@
 </template>
 
 <script setup lang="ts">
+import { useAccountStore } from '~/stores/account'
+
 const route = useRoute()
+const auth = useAuth()
+const session = auth.useSession()
+async function signOut() {
+  const result = await auth.signOut()
+  if (!result.error) { useAccountStore().clear(); await navigateTo('/signin') }
+}
 
 const navItems = [
+  { label: 'Rooms', to: '/rooms', icon: 'i-lucide-users' },
   { label: 'New Match', to: '/match/new', icon: 'i-lucide-circle-plus' },
   { label: 'History', to: '/history', icon: 'i-lucide-history' },
   { label: 'Settings', to: '/settings', icon: 'i-lucide-settings' }

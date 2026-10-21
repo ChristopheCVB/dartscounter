@@ -1,215 +1,153 @@
-import type { DartInput, GameSettings, Match, Multiplier, Segment } from '~~/shared/types/darts'
-import { parsePointsToDart } from '~/composables/useScoringEngine'
-import { useHistoryStore } from '~/stores/history'
-import { useMatchState } from '~/composables/useMatchState'
-import { usePersistence } from '~/composables/usePersistence'
-import { useThrowSounds } from '~/composables/useThrowSounds'
-
-function cloneMatch(match: Match): Match {
-  return JSON.parse(JSON.stringify(match)) as Match
-}
-
-function shufflePlayers<T>(players: T[]): T[] {
-  const shuffled = [...players]
-
-  for (let idx = shuffled.length - 1; idx > 0; idx -= 1) {
-    const swapIndex = Math.floor(Math.random() * (idx + 1))
-    const current = shuffled[idx]
-    const swapped = shuffled[swapIndex]
-
-    if (current === undefined || swapped === undefined) {
-      continue
-    }
-
-    shuffled[idx] = swapped
-    shuffled[swapIndex] = current
-  }
-
-  return shuffled
-}
+import { useAccountStore } from '~/stores/account'
+import type { DartInput, GameSettings, Multiplier, Segment } from '~~/shared/types/darts'
+import type { RoomView } from '~~/shared/types/rooms'
+import type { RoomAction } from '~~/shared/utils/validation'
+import { parsePointsToDart } from '~~/shared/utils/scoringEngine'
+import { useMatchState } from '~~/shared/utils/matchState'
+import { apiError } from '~/utils/apiError'
 
 export const useMatchStore = defineStore('match', () => {
-  const activeMatch = ref<Match | null>(null)
-  const undoStack = ref<Match[]>([])
+  const room = ref<RoomView | null>(null)
+  const activeMatch = computed(() => room.value?.match ?? null)
+  const currentPlayer = computed(() => activeMatch.value?.players[activeMatch.value.currentPlayerIndex] ?? null)
   const selectedMultiplier = ref<Multiplier>(1)
   const numericBuffer = ref('')
   const transitionLocked = ref(false)
-
-  const { createMatch, recordDart, setNumericInput } = useMatchState()
+  const connected = ref(false)
+  const pending = ref(false)
+  const error = ref('')
+  let source: EventSource | undefined
+  let generation = 0
+  let refreshSequence = 0
+  const uncertain = ref<{ roomId: string, requestId: string, expectedRevision: number, action: RoomAction } | null>(null)
   const { playForThrow } = useThrowSounds()
-  const { saveActiveMatch, loadActiveMatch: readActiveMatch } = usePersistence()
-  const historyStore = useHistoryStore()
+  const canScore = computed(() => connected.value && !pending.value && !uncertain.value && !transitionLocked.value && activeMatch.value?.status === 'in_progress' && !!currentPlayer.value && room.value?.controllers[currentPlayer.value.id] === useAccountStore().userId)
+  const canUndo = computed(() => connected.value && !pending.value && !uncertain.value && !!room.value?.canUndo)
 
-  const currentPlayer = computed(() => {
-    if (!activeMatch.value) {
-      return null
-    }
-    return activeMatch.value.players[activeMatch.value.currentPlayerIndex]
-  })
-
-  function startMatch(
-    settings: GameSettings,
-    players: Array<{ id: string, name: string, color: string }>
-  ) {
-    const randomizedPlayers = shufflePlayers(players)
-
-    activeMatch.value = createMatch(settings, randomizedPlayers)
-
-    undoStack.value = []
-    selectedMultiplier.value = 1
-    numericBuffer.value = ''
-    transitionLocked.value = false
-    saveActiveMatch(activeMatch.value)
-  }
-
-  function pushUndoSnapshot() {
-    if (!activeMatch.value || activeMatch.value.status !== 'in_progress') {
-      return
-    }
-    undoStack.value.push(cloneMatch(activeMatch.value))
-    if (undoStack.value.length > 200) {
-      undoStack.value.shift()
-    }
-  }
-
-  function setMultiplier(multiplier: Multiplier) {
-    selectedMultiplier.value = multiplier
-  }
-
-  function appendNumericDigit(digit: string) {
-    if (!/^\d$/.test(digit)) {
-      return
-    }
-    numericBuffer.value = setNumericInput(numericBuffer.value, digit)
-  }
-
-  function popNumericDigit() {
-    numericBuffer.value = numericBuffer.value.slice(0, -1)
-  }
-
-  function clearNumericBuffer() {
-    numericBuffer.value = ''
-  }
-
-  function lockTransition(ms = 420) {
-    transitionLocked.value = true
-    if (import.meta.client) {
-      window.setTimeout(() => {
-        transitionLocked.value = false
-      }, ms)
-    } else {
+  function acceptRoom(next: RoomView, live = false) {
+    if (room.value?.id === next.id && room.value.revision >= next.revision) return
+    const previous = room.value
+    room.value = next
+    if (previous?.match?.id !== next.match?.id) {
+      numericBuffer.value = ''
+      selectedMultiplier.value = 1
       transitionLocked.value = false
     }
+    if (live && previous?.match?.id === next.match?.id) {
+      const before = new Set(previous?.match?.throws.map(dart => dart.id))
+      for (const dart of next.match?.throws ?? []) if (!before.has(dart.id)) void playForThrow(dart)
+      if (previous?.match?.currentPlayerIndex !== next.match?.currentPlayerIndex) {
+        transitionLocked.value = true
+        setTimeout(() => { transitionLocked.value = false }, 420)
+      }
+    }
+    if (live && previous?.summary?.id !== next.summary?.id) void useAccountStore().load()
   }
-
-  function addDart(input: DartInput) {
-    if (!activeMatch.value || transitionLocked.value || activeMatch.value.status !== 'in_progress') {
-      return
-    }
-
-    pushUndoSnapshot()
-    const result = recordDart(activeMatch.value, input)
-    activeMatch.value = result.updated
-    void playForThrow(input)
-
-    const justEndedTurn = activeMatch.value.currentTurnDarts.length === 0 && activeMatch.value.status === 'in_progress'
-
-    if (justEndedTurn) {
-      lockTransition()
-    }
-
-    if (result.summary) {
-      historyStore.addSummary(result.summary)
-      saveActiveMatch(null)
-      return
-    }
-
-    saveActiveMatch(activeMatch.value)
+  async function refresh(id = room.value?.id, live = false) {
+    if (!id) return
+    const mine = generation
+    const next = await $fetch<RoomView>(`/api/rooms/${id}`)
+    if (mine === generation) acceptRoom(next, live)
   }
-
-  function addSegment(segment: Segment) {
-    addDart({ segment, multiplier: selectedMultiplier.value })
+  function disconnect() {
+    generation++
+    source?.close()
+    source = undefined
+    connected.value = false
+    pending.value = false
   }
-
-  function addMiss() {
-    addDart({ segment: 0, multiplier: 1 })
-  }
-
-  function addBull(double = false) {
-    addDart({ segment: 25, multiplier: double ? 2 : 1 })
-  }
-
-  function submitNumericThrow() {
-    if (!activeMatch.value || !numericBuffer.value) {
-      return
-    }
-
-    if (activeMatch.value.settings.mode !== 'x01') {
-      numericBuffer.value = ''
-      return
-    }
-
-    const total = Number(numericBuffer.value)
-    if (Number.isNaN(total) || total < 0 || total > 60) {
-      numericBuffer.value = ''
-      return
-    }
-
-    const settings = activeMatch.value.settings
-    const player = activeMatch.value.players[activeMatch.value.currentPlayerIndex]!
-    const targetScore = player.score - total
-    const preferDouble = settings.doubleOut && targetScore === 0
-    const parsed = parsePointsToDart(total, preferDouble)
-
-    if (!parsed) {
-      numericBuffer.value = ''
-      return
-    }
-
-    addDart(parsed)
+  function reset() {
+    disconnect()
+    room.value = null
+    uncertain.value = null
     numericBuffer.value = ''
-  }
-
-  function undoLastDart() {
-    const previous = undoStack.value.pop()
-    if (!previous) {
-      return
-    }
-    activeMatch.value = previous
-    saveActiveMatch(activeMatch.value)
-  }
-
-  function clearMatch() {
-    activeMatch.value = null
-    undoStack.value = []
     selectedMultiplier.value = 1
-    numericBuffer.value = ''
     transitionLocked.value = false
-    saveActiveMatch(null)
+    error.value = ''
   }
-
-  function loadActiveMatch() {
-    activeMatch.value = readActiveMatch()
+  async function connect(id: string) {
+    disconnect()
+    const mine = generation
+    source = new EventSource(`/api/rooms/${id}/events`)
+    source.addEventListener('update', async () => {
+      const sequence = ++refreshSequence
+      try {
+        await refresh(id, connected.value)
+        if (mine === generation && sequence === refreshSequence) {
+          connected.value = true
+          if (!uncertain.value) error.value = ''
+        }
+      } catch (cause) { if (mine === generation) error.value = apiError(cause) }
+    })
+    source.addEventListener('revoked', () => {
+      if (mine !== generation) return
+      disconnect()
+      room.value = null
+      error.value = 'Session expired or room access was removed. Sign in or return to Rooms.'
+    })
+    source.onerror = () => {
+      if (mine !== generation) return
+      connected.value = false
+      error.value = 'Connection lost. Scoring is paused while reconnecting.'
+    }
   }
-
-  return {
-    activeMatch,
-    currentPlayer,
-    selectedMultiplier,
-    numericBuffer,
-    transitionLocked,
-    startMatch,
-    setMultiplier,
-    addDart,
-    addSegment,
-    addMiss,
-    addBull,
-    appendNumericDigit,
-    popNumericDigit,
-    clearNumericBuffer,
-    submitNumericThrow,
-    undoLastDart,
-    clearMatch,
-    loadActiveMatch
+  async function send(request: NonNullable<typeof uncertain.value>) {
+    const mine = generation
+    uncertain.value = request
+    pending.value = true
+    try {
+      const next = await $fetch<RoomView>(`/api/rooms/${request.roomId}/actions`, { method: 'POST', body: request, retry: 1, retryStatusCodes: [408, 502, 503, 504], timeout: 15_000 })
+      if (mine !== generation) return false
+      if (room.value?.id === request.roomId) acceptRoom(next, true)
+      uncertain.value = null
+      error.value = ''
+      if (room.value?.id === request.roomId) await refresh(request.roomId)
+      return true
+    } catch (cause) {
+      if (mine !== generation) return false
+      const status = (cause as { statusCode?: number }).statusCode
+      if (!status || status >= 500 || status === 408) uncertain.value = request
+      else {
+        uncertain.value = null
+        if (room.value?.id === request.roomId) await refresh(request.roomId).catch(() => {})
+      }
+      error.value = apiError(cause)
+      return false
+    } finally { if (mine === generation) pending.value = false }
   }
+  async function act(action: RoomAction) {
+    if (!room.value || pending.value || uncertain.value || !connected.value) return false
+    return send({ roomId: room.value.id, requestId: crypto.randomUUID(), expectedRevision: room.value.revision, action })
+  }
+  async function retryUncertain() { if (uncertain.value && !pending.value) return send(uncertain.value) }
+  async function startMatch(settings: GameSettings, players: Array<{ id: string, name: string, color: string }>) {
+    try {
+      const created = await $fetch<RoomView>('/api/rooms', { method: 'POST', body: { settings } })
+      acceptRoom(created)
+      for (const action of [{ type: 'roster', playerIds: players.map(p => p.id) }, { type: 'ready', ready: true }, { type: 'start' }] as RoomAction[]) {
+        const request = { roomId: created.id, requestId: crypto.randomUUID(), expectedRevision: room.value!.revision, action }
+        if (!await send(request)) return false
+      }
+      return true
+    } catch (cause) { error.value = apiError(cause); return false }
+  }
+  function setMultiplier(value: Multiplier) { selectedMultiplier.value = value }
+  function appendNumericDigit(digit: string) {
+    if (/^\d$/.test(digit)) numericBuffer.value = useMatchState().setNumericInput(numericBuffer.value, digit)
+  }
+  function popNumericDigit() { numericBuffer.value = numericBuffer.value.slice(0, -1) }
+  function clearNumericBuffer() { numericBuffer.value = '' }
+  async function addDart(dart: DartInput) { if (canScore.value) return act({ type: 'dart', dart }) }
+  function addSegment(segment: Segment) { return addDart({ segment, multiplier: selectedMultiplier.value }) }
+  function addMiss() { return addDart({ segment: 0, multiplier: 1 }) }
+  function addBull(double = false) { return addDart({ segment: 25, multiplier: double ? 2 : 1 }) }
+  async function submitNumericThrow() {
+    if (!canScore.value || !numericBuffer.value || activeMatch.value?.settings.mode !== 'x01') return
+    const total = Number(numericBuffer.value)
+    const parsed = parsePointsToDart(total, activeMatch.value.settings.doubleOut && currentPlayer.value!.score - total === 0)
+    if (parsed && await addDart(parsed)) numericBuffer.value = ''
+  }
+  async function undoLastDart() { if (canUndo.value) return act({ type: 'undo' }) }
+  async function clearMatch() { return act({ type: 'abandon' }) }
+  return { room, activeMatch, currentPlayer, selectedMultiplier, numericBuffer, transitionLocked, connected, pending, error, uncertain, canScore, canUndo, acceptRoom, connect, disconnect, reset, refresh, act, retryUncertain, startMatch, setMultiplier, appendNumericDigit, popNumericDigit, clearNumericBuffer, addDart, addSegment, addMiss, addBull, submitNumericThrow, undoLastDart, clearMatch }
 })

@@ -1,10 +1,12 @@
-# DartCounter Specs
+# DartsCounter Specs
 
-This directory tracks the product/implementation specs for DartCounter as-built.
+This directory tracks the product/implementation specs for DartsCounter as-built.
 
-Last verified against code: 2026-04-10
+Last verified against code: 2026-10-21
 
-Current baseline:
+Current behavior is defined by [08-server-multiplayer.md](08-server-multiplayer.md), which supersedes local-only persistence and authentication requirements below.
+
+Previous baseline:
 
 - Stack: Nuxt 4 + Nuxt UI + Pinia + TypeScript
 - Package manager: Bun
@@ -16,7 +18,7 @@ Current baseline:
 - Turn behavior: auto-end after 3 darts
 - Keyboard shortcuts: Nuxt UI `defineShortcuts` on live match page
 
-Reading order:
+Reading order (read specification 08 first for server/auth/room behavior):
 
 1. `specs/01-product-mvp.md`
 2. `specs/02-architecture-and-data-model.md`
@@ -25,5 +27,6 @@ Reading order:
 5. `specs/05-summary-history-settings.md`
 6. `specs/06-keyboard-shortcuts-nuxt-ui.md`
 7. `specs/07-recent-players-and-lifetime-stats.md`
+8. `specs/08-server-multiplayer.md`
 
 Use these docs as source-of-truth for current behavior plus targeted follow-up work.

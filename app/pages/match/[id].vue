@@ -1,11 +1,13 @@
 <template>
-  <section v-if="match" class="grid items-start gap-5 lg:grid-cols-[2fr_1fr]">
+  <section v-if="match" :aria-busy="matchStore.pending" class="grid items-start gap-5 lg:grid-cols-[2fr_1fr]">
     <div class="grid gap-4 arcade-reveal">
       <MatchScoreboard :players="match.players" :active-index="match.currentPlayerIndex" :settings="match.settings" />
       <MatchThrowPad
         :multiplier="matchStore.selectedMultiplier"
         :numeric-buffer="match.settings.mode === 'atc' ? '' : matchStore.numericBuffer"
         :player-color="currentPlayerColor"
+        :disabled="!matchStore.canScore"
+        :undo-disabled="!matchStore.canUndo"
         @multiplier="matchStore.setMultiplier"
         @segment="matchStore.addSegment"
         @bull="matchStore.addBull"
@@ -48,11 +50,15 @@
         <p class="m-0">Player: <strong :style="{ color: currentPlayerColor }">{{ currentPlayerName }}</strong></p>
         <p class="m-0 text-muted">Turn {{ match.currentTurnIndex + 1 }} · Darts {{ match.currentTurnDarts.length }}/3</p>
         <p v-if="matchStore.transitionLocked" class="m-0 text-muted">Auto-advancing turn...</p>
+        <p class="text-muted">{{ matchStore.connected ? (matchStore.canScore ? 'Your player’s turn' : 'Watching · waiting for the controlling player') : 'Connecting · scoring paused' }}</p>
+        <UAlert v-if="matchStore.error" color="error" :title="matchStore.error" />
+        <UButton v-if="matchStore.uncertain" :loading="matchStore.pending" @click="matchStore.retryUncertain">Resolve pending dart</UButton>
 
         <div class="grid gap-2">
           <UButton v-if="lastSummary" color="primary" variant="soft" @click="showRecap = true">Show Match Recap</UButton>
           <UButton color="neutral" variant="soft" @click="showShortcuts = true">Keyboard shortcuts (?)</UButton>
-          <UButton color="error" variant="soft" @click="exitMatch">End Match</UButton>
+          <UButton v-if="matchStore.room" :to="`/room/${matchStore.room.id}`" color="neutral" variant="soft">Room lobby</UButton>
+          <UButton v-if="match.status === 'in_progress' && matchStore.room?.ownerId === account.userId" color="error" variant="soft" :disabled="!matchStore.connected || matchStore.pending || !!matchStore.uncertain" @click="exitMatch">End Match</UButton>
         </div>
       </UCard>
 
@@ -155,19 +161,20 @@
 </template>
 
 <script setup lang="ts">
+import { useAccountStore } from '~/stores/account'
+
 import MatchScoreboard from '~/components/match/Scoreboard.vue'
 import MatchStats from '~/components/stats/MatchStats.vue'
 import MatchThrowPad from '~/components/match/ThrowPad.vue'
 import MatchTurnTimeline from '~/components/match/TurnTimeline.vue'
 import { useThrowSounds } from '~/composables/useThrowSounds'
-import { useHistoryStore } from '~/stores/history'
-import { complementaryColor } from '~/constants/playerColors'
+import { complementaryColor } from '~~/shared/utils/playerColors'
 import { useMatchStore } from '~/stores/match'
 
 const route = useRoute()
 const router = useRouter()
 const matchStore = useMatchStore()
-const historyStore = useHistoryStore()
+const account = useAccountStore()
 const { playConfetti } = useThrowSounds()
 
 const showShortcuts = ref(false)
@@ -187,7 +194,7 @@ const match = computed(() => {
 
 const currentPlayerName = computed(() => matchStore.currentPlayer?.name || '-')
 const currentPlayerColor = computed(() => matchStore.currentPlayer?.color || 'var(--ui-text)')
-const lastSummary = computed(() => historyStore.entries.find(entry => entry.matchId === matchStore.activeMatch?.id) || null)
+const lastSummary = computed(() => matchStore.room?.summary ?? null)
 const winnerColor = computed(() => {
   if (!match.value?.winnerId) {
     return '#f05a28'
@@ -237,12 +244,12 @@ const recapFinishedAt = computed(() => {
 
 watch(
   () => [match.value?.id, match.value?.status, match.value?.winnerId] as const,
-  async ([id, status, winnerId]) => {
+  async ([id, status, winnerId], previous) => {
     if (!id || status !== 'finished' || !winnerId) {
       return
     }
 
-    if (celebratedMatchId.value === id || !import.meta.client) {
+    if (!previous || previous[0] !== id || previous[1] !== 'in_progress' || celebratedMatchId.value === id || !import.meta.client) {
       return
     }
 
@@ -294,6 +301,11 @@ watch(
 watch(
   () => [match.value?.id, match.value?.status, lastSummary.value?.id] as const,
   ([id, status, summaryId]) => {
+    if (status !== 'finished') {
+      showRecap.value = false
+      openedRecapMatchId.value = ''
+      celebratedMatchId.value = ''
+    }
     if (!id || status !== 'finished' || !summaryId) {
       return
     }
@@ -343,7 +355,7 @@ defineShortcuts({
   b: () => guarded(() => matchStore.addBull(false)),
   shift_b: () => guarded(() => matchStore.addBull(true)),
   m: () => guarded(() => matchStore.addMiss()),
-  u: () => guarded(() => matchStore.undoLastDart()),
+  u: () => { if (!isTypingInInput() && !showShortcuts.value && !showRecap.value) void matchStore.undoLastDart() },
   enter: () => guarded(() => matchStore.submitNumericThrow()),
   backspace: () => guarded(() => matchStore.popNumericDigit()),
   escape: () => {
@@ -372,10 +384,20 @@ defineShortcuts({
   9: () => guarded(() => matchStore.appendNumericDigit('9'))
 })
 
-function exitMatch() {
-  matchStore.clearMatch()
-  router.push('/')
+async function exitMatch() {
+  if (!window.confirm('End this match without a winner?')) return
+  if (await matchStore.clearMatch()) await router.push(`/room/${matchStore.room!.id}`)
 }
+
+onMounted(async () => {
+  await account.load()
+  try {
+    const room = await $fetch<import('~~/shared/types/rooms').RoomView>(`/api/matches/${String(route.params.id)}`)
+    matchStore.acceptRoom(room)
+    await matchStore.connect(room.id)
+  } catch { matchStore.error = 'Unable to load this match. Return to Rooms or sign in again.' }
+})
+onBeforeUnmount(() => matchStore.disconnect())
 </script>
 
 <style scoped>

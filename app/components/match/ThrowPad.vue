@@ -7,7 +7,8 @@
       </div>
     </template>
 
-    <div class="grid gap-4">
+    <UButton color="error" variant="soft" class="mb-3" :disabled="undoDisabled" @click="emit('undo')">Undo</UButton>
+    <fieldset :disabled="disabled" class="grid gap-4">
       <div class="flex flex-wrap gap-2">
         <UButton color="neutral" :variant="inputMode === 'quick' ? 'solid' : 'soft'" @click="inputMode = 'quick'">Quick Input</UButton>
         <UButton color="neutral" :variant="inputMode === 'target' ? 'solid' : 'soft'" @click="inputMode = 'target'">Interactive Target</UButton>
@@ -20,7 +21,6 @@
         <UButton color="neutral" variant="soft" @click="emit('bull', false)">Bull 25</UButton>
         <UButton color="neutral" variant="soft" @click="emit('bull', true)">Bull 50</UButton>
         <UButton color="neutral" variant="soft" @click="emit('miss')">Miss</UButton>
-        <UButton color="error" variant="soft" @click="emit('undo')">Undo</UButton>
       </div>
 
       <div v-if="inputMode === 'quick'" class="grid grid-cols-4 gap-2 sm:grid-cols-5">
@@ -39,7 +39,7 @@
         <UButton color="neutral" variant="soft" @click="emit('backspace')">Backspace</UButton>
         <UButton @click="emit('submitNumeric')">Enter</UButton>
       </div>
-    </div>
+    </fieldset>
   </UCard>
 </template>
 
@@ -51,6 +51,8 @@ const props = defineProps<{
   multiplier: Multiplier
   numericBuffer: string
   playerColor: string
+  disabled?: boolean
+  undoDisabled?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -77,6 +79,7 @@ const multiplierLabel = computed(() => {
 })
 
 function handleTargetHit(payload: { segment: Segment, multiplier: Multiplier }) {
+  if (props.disabled) return
   emit('dart', payload)
 }
 </script>

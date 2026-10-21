@@ -1,6 +1,11 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
-  modules: ['@nuxt/ui', '@pinia/nuxt', '@vueuse/nuxt', '@nuxt/eslint', '@nuxt/test-utils/module'],
+  modules: ['@nuxt/ui', '@pinia/nuxt', '@vueuse/nuxt', '@nuxt/eslint', '@nuxt/test-utils/module', '@nuxtjs/turnstile', 'nuxt-email-renderer'],
+  nuxtEmailRenderer: { devtools: true, codeHighlighting: false },
+  runtimeConfig: {
+    resend: { apiKey: '', from: '' },
+    public: { turnstile: { siteKey: '' } }
+  },
   css: ['~/assets/css/main.css'],
   app: {
     head: {
@@ -16,13 +21,16 @@ export default defineNuxtConfig({
   },
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
-  nitro: { preset: 'bun' },
+  nitro: {
+    preset: 'bun',
+    typescript: { tsConfig: { include: ['../tests/integration/**/*.ts', '../tests/e2e/fixtures/**/*.ts'] } }
+  },
   typescript: {
     appTsConfig: {
       include: ['../tests/unit/**/*.ts']
     },
     nodeTsConfig: {
-      include: ['../tests/e2e/**/*.ts', '../*.ts', '../scripts/**/*'],
+      include: ['../tests/e2e/**/*.test.ts', '../tests/helpers/**/*.ts', '../*.ts', '../scripts/**/*'],
       compilerOptions: {
         checkJs: true
       }

@@ -1,6 +1,6 @@
-# DartCounter
+# DartsCounter
 
-A local-first darts scoring app built with Nuxt. Bun is the runtime and package manager.
+A server-backed darts scoring app with reusable multiplayer rooms, built with Nuxt. Bun is the runtime and package manager.
 
 ## Setup
 
@@ -13,6 +13,16 @@ mise exec -- bun install --frozen-lockfile
 ```
 
 With mise shell activation enabled, you can run `bun` directly. Otherwise, prefix commands with `mise exec --` as shown below.
+
+## Database and authentication
+
+Copy `.env.example` to `.env`, generate an independent Better Auth secret, and configure a verified Resend sender/API key and Turnstile keys. Accounts require email verification. The public Better Auth URL must exactly match the browser origin. Never reuse line-learner's secrets or account database.
+
+Verification and password-reset messages use local Vue templates in `app/emails/`, following line-learner's `nuxt-email-renderer` setup. Subjects live in `ESubject`, and the shared layout provides the action button and fallback URL. The server renders both HTML and plain text before sending through Resend. Open the Email Renderer panel in Nuxt DevTools to preview either template with fictional props; previews do not send mail.
+
+Start PostgreSQL 18 with `docker compose up -d postgres`. Startup applies committed Drizzle migrations under a database advisory lock; missing database access or a migration error prevents startup. Create schema changes with `mise exec -- bun run db:generate`. `db:migrate` applies migrations explicitly and `db:studio` opens Drizzle Studio.
+
+Existing browser localStorage data remains untouched and is not imported. Scoring and saved data now require an account and internet access.
 
 ## Development
 
@@ -42,7 +52,9 @@ Install Chromium and its system dependencies once before running browser tests:
 mise exec -- bunx --bun playwright-core install --with-deps chromium
 ```
 
-The system dependency installation may request sudo. Run all checks with:
+The system dependency installation may request sudo. Create a dedicated test database once with `docker compose exec postgres createdb -U postgres dartscounter_test`. Integration and browser tests default to `postgresql://postgres:postgres@127.0.0.1:5432/dartscounter_test`; override `TEST_DATABASE_URL` for CI or a different port. Tests reject database names that do not end in `_test`, create isolated verified accounts/sessions, and clean up their records. Auth tests exercise verification and password reset with mocked email delivery; browser sessions are seeded directly in the test database without adding production auth bypasses.
+
+Run all checks with:
 
 ```bash
 mise exec -- bun run lint
@@ -51,16 +63,17 @@ mise exec -- bun run typecheck
 mise exec -- bun run build
 ```
 
-Vitest runs three projects in order: pure unit tests, Nuxt component tests using happy-dom, and Chromium E2E tests against a production build. Each browser test uses a fresh context. To run one project or watch tests:
+Vitest runs four projects in order: pure unit tests, Nuxt component tests using happy-dom, PostgreSQL integration tests, and Chromium E2E tests against a production build. Each browser test uses a fresh signed-in context. To run one project or watch tests:
 
 ```bash
 mise exec -- bun run test:unit
 mise exec -- bun run test:nuxt
 mise exec -- bun run test:e2e
+mise exec -- bun run test:integration
 mise exec -- bun run test:watch
 ```
 
-Test paths mirror the source tree beneath each suite: `tests/unit/app/composables/`, `tests/nuxt/app/components/`, and `tests/e2e/app/pages/`. `bun run typecheck` checks every suite: unit and Nuxt tests use the app TypeScript project, and E2E tests use the Node project. Root TypeScript configs and tooling scripts are also checked, with JavaScript checking enabled for the tooling project. `bun run lint` covers all project JavaScript, TypeScript, and Vue files.
+Test paths mirror the source tree beneath each suite: `tests/unit/shared/utils/`, `tests/nuxt/app/components/`, `tests/integration/server/`, and `tests/e2e/app/pages/`. `bun run typecheck` checks every suite: unit and Nuxt tests use the app TypeScript project, and E2E tests use the Node project. Root TypeScript configs and tooling scripts are also checked, with JavaScript checking enabled for the tooling project. `bun run lint` covers all project JavaScript, TypeScript, and Vue files.
 
 Use `mise exec -- bun run lint:fix` to apply automatic lint corrections. The ESLint config uses Nuxt's recommended rules without additional formatting rules.
 
@@ -81,10 +94,14 @@ Use `mise exec -- bun run preview` to preview the production build locally.
 
 ```bash
 docker build -t dartscounter .
-docker run --rm -p 3000:3000 dartscounter
+docker run --rm --env-file .env -p 3000:3000 dartscounter
 ```
 
-The multistage image builds with Bun 1.4.3 and contains the production `.output` directory, the Bun runtime, and `curl` for Coolify's HTTP health checks. It listens on port 3000. Configure Coolify's HTTP health check to use port 3000 and path `/`. Matches and settings remain in each browser's localStorage; the container needs no database or volume.
+The multistage image builds with Bun 1.4.3 and contains the production `.output` directory, the Bun runtime, and `curl` for Coolify's HTTP health checks. It listens on port 3000. Configure Coolify's HTTP health check to use port 3000 and path `/api/health`. Provide a dedicated PostgreSQL 18 database with persistent storage and backups; the application image includes migrations. Inside a container, set `NUXT_DATABASE_URL` to a reachable database hostname, rather than `localhost`.
+
+Deploy one Bun app instance. Room updates use authenticated SSE; disable proxy buffering and allow long-lived connections. Browser reconnects reload authoritative PostgreSQL state. Scaling to multiple app replicas requires a shared notification bus before changing the replica count. Production email delivery and Turnstile must be configured with the app's domain.
+
+Set `REQUEST_LOGGING_ENABLED=true` to enable tagged consola request logs, adapted from [line-learner's request logger](https://github.com/ChristopheCVB/line-learner/blob/main/server/plugins/request-logger.ts). Static assets are skipped; query strings and password-reset path tokens are omitted. SSE logs one opening and one closure with the full stream duration. Heartbeats keep the stream active, and the Docker image sets Bun's idle timeout to 60 seconds.
 
 ## GitHub Actions and releases
 

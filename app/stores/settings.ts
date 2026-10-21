@@ -1,83 +1,35 @@
 import type { AtcSettings, X01Settings } from '~~/shared/types/darts'
-import { usePersistence } from '~/composables/usePersistence'
-
-const DEFAULT_SETTINGS: X01Settings = {
-  mode: 'x01',
-  startScore: 501,
-  doubleIn: false,
-  doubleOut: true,
-  legsTarget: 1
-}
-
-const DEFAULT_ATC_SETTINGS: AtcSettings = {
-  mode: 'atc',
-  fastForward: false
-}
+import type { Preferences } from '~~/shared/types/rooms'
+import { defaultPreferences } from '~~/shared/types/rooms'
+import { apiError } from '~/utils/apiError'
 
 export const useSettingsStore = defineStore('settings', () => {
-  const settings = ref<X01Settings>({ ...DEFAULT_SETTINGS })
-  const atcSettings = ref<AtcSettings>({ ...DEFAULT_ATC_SETTINGS })
-  const { saveSettings, loadSettings, saveAtcSettings, loadAtcSettings } = usePersistence()
+  const settings = ref({ ...defaultPreferences.settings })
+  const atcSettings = ref({ ...defaultPreferences.atcSettings })
   const soundEnabled = ref(true)
-
-  function persist() {
-    saveSettings({
-      ...settings.value,
-      soundEnabled: soundEnabled.value
-    })
+  function hydrate(data: Preferences) {
+    settings.value = data.settings
+    atcSettings.value = data.atcSettings
+    soundEnabled.value = data.soundEnabled
   }
-
+  function reset() { hydrate(structuredClone(defaultPreferences)) }
+  async function save(data: Preferences) {
+    try {
+      hydrate(await $fetch<Preferences>('/api/preferences', { method: 'PUT', body: data }))
+      return true
+    } catch (error) {
+      useToast().add({ title: 'Settings were not saved', description: apiError(error), color: 'error' })
+      return false
+    }
+  }
   function update(patch: Partial<Omit<X01Settings, 'mode'>>) {
-    settings.value = {
-      ...settings.value,
-      ...patch
-    }
-    persist()
+    return save({ settings: { ...settings.value, ...patch }, atcSettings: atcSettings.value, soundEnabled: soundEnabled.value })
   }
-
   function updateAtcSettings(patch: Partial<Omit<AtcSettings, 'mode'>>) {
-    atcSettings.value = {
-      ...atcSettings.value,
-      ...patch
-    }
-    saveAtcSettings(atcSettings.value)
+    return save({ settings: settings.value, atcSettings: { ...atcSettings.value, ...patch }, soundEnabled: soundEnabled.value })
   }
-
   function updateSoundEnabled(value: boolean) {
-    soundEnabled.value = value
-    persist()
+    return save({ settings: settings.value, atcSettings: atcSettings.value, soundEnabled: value })
   }
-
-  function load() {
-    const stored = loadSettings({
-      ...DEFAULT_SETTINGS,
-      soundEnabled: true
-    })
-
-    settings.value = {
-      mode: 'x01',
-      startScore: stored.startScore,
-      doubleIn: stored.doubleIn,
-      doubleOut: stored.doubleOut,
-      legsTarget: stored.legsTarget
-    }
-    soundEnabled.value = stored.soundEnabled ?? true
-
-    const storedAtc = loadAtcSettings(DEFAULT_ATC_SETTINGS)
-    atcSettings.value = {
-      mode: 'atc',
-      fastForward: storedAtc.fastForward ?? false
-    }
-  }
-
-  return {
-    settings,
-    atcSettings,
-    soundEnabled,
-    update,
-    updateAtcSettings,
-    updateSoundEnabled,
-    load,
-    DEFAULT_SETTINGS
-  }
+  return { settings, atcSettings, soundEnabled, hydrate, reset, save, update, updateAtcSettings, updateSoundEnabled }
 })

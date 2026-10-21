@@ -2,7 +2,7 @@
   <section class="grid gap-4">
     <UPageHeader
       title="Settings"
-      description="Tune defaults and manage your local player roster."
+      description="Tune account defaults and manage your players and their lifetime statistics."
       headline="Control Room"
       class="arcade-reveal"
     />
@@ -148,6 +148,7 @@
               Edit
             </UButton>
             <UButton
+              v-if="row.original.id !== account.self?.id"
               color="error"
               variant="soft"
               size="xs"
@@ -164,9 +165,9 @@
 
 <script setup lang="ts">
 import type { GameMode } from '~~/shared/types/darts'
-import { fallbackPlayerColor, normalizePlayerColor } from '~/constants/playerColors'
-import { aggregatePlayerStats } from '~/composables/usePlayerStats'
-import { useHistoryStore } from '~/stores/history'
+import { useAccountStore } from '~/stores/account'
+import { fallbackPlayerColor, normalizePlayerColor } from '~~/shared/utils/playerColors'
+import type { AggregatedPlayerStats } from '~~/shared/utils/playerStats'
 import { usePlayersStore } from '~/stores/players'
 import { useSettingsStore } from '~/stores/settings'
 
@@ -183,7 +184,7 @@ type RecentPlayerRow = {
 }
 
 const playersStore = usePlayersStore()
-const historyStore = useHistoryStore()
+const account = useAccountStore()
 const settingsStore = useSettingsStore()
 const toast = useToast()
 const startScoreItems = [301, 501]
@@ -193,6 +194,7 @@ const editingPlayerId = ref('')
 const editingName = ref('')
 const colorUpdateTimeouts = new Map<string, ReturnType<typeof setTimeout>>()
 const leaderboardMode = ref<GameMode>('x01')
+const { data: serverStats, refresh: refreshStats } = await useFetch<AggregatedPlayerStats[]>('/api/stats', { query: { mode: leaderboardMode } })
 
 const recentPlayerColumns = computed(() => {
   if (leaderboardMode.value === 'atc') {
@@ -220,7 +222,7 @@ const recentPlayerColumns = computed(() => {
 })
 
 const recentPlayerRows = computed<RecentPlayerRow[]>(() => {
-  const aggregated = aggregatePlayerStats(historyStore.entries, playersStore.recentPlayers, leaderboardMode.value)
+  const aggregated = serverStats.value ?? []
   const byId = new Map(aggregated.map(player => [player.id, player]))
 
   return playersStore.recentPlayers.map((player) => {
@@ -259,14 +261,11 @@ const local = reactive({
   soundEnabled: settingsStore.soundEnabled
 })
 
-function save() {
-  settingsStore.update({
-    startScore: local.startScore,
-    doubleIn: local.doubleIn,
-    doubleOut: local.doubleOut,
-    legsTarget: local.legsTarget
-  })
-  settingsStore.updateSoundEnabled(local.soundEnabled)
+async function save() {
+  if (!await settingsStore.save({
+    settings: { mode: 'x01', startScore: local.startScore, doubleIn: local.doubleIn, doubleOut: local.doubleOut, legsTarget: local.legsTarget },
+    atcSettings: settingsStore.atcSettings, soundEnabled: local.soundEnabled
+  })) return
   toast.add({
     title: 'Settings saved',
     description: 'Default match settings and sound preference updated.',
@@ -274,14 +273,14 @@ function save() {
   })
 }
 
-function addRecentPlayer() {
+async function addRecentPlayer() {
   const next = newRecentName.value.trim()
   if (!next) {
     return
   }
 
   const color = normalizePlayerColor(newRecentColor.value, playersStore.recentPlayers.length)
-  playersStore.addRecentPlayer(next, color)
+  if (!await playersStore.addRecentPlayer(next, color)) return
   newRecentName.value = ''
   newRecentColor.value = fallbackPlayerColor(playersStore.recentPlayers.length)
   toast.add({
@@ -301,7 +300,7 @@ function cancelEdit() {
   editingName.value = ''
 }
 
-function saveEdit() {
+async function saveEdit() {
   const playerId = editingPlayerId.value
   const original = playersStore.recentPlayers.find(player => player.id === playerId)
   const next = editingName.value.trim()
@@ -310,7 +309,8 @@ function saveEdit() {
     return
   }
 
-  playersStore.renameRecentPlayer(playerId, next)
+  if (!await playersStore.renameRecentPlayer(playerId, next)) return
+  await refreshStats()
   toast.add({
     title: 'Player renamed',
     description: `${original.name} is now ${next}.`,
@@ -319,12 +319,12 @@ function saveEdit() {
   cancelEdit()
 }
 
-function removeRecentPlayer(playerId: string, playerName: string) {
+async function removeRecentPlayer(playerId: string, playerName: string) {
   if (!playerId) {
     return
   }
 
-  playersStore.removeRecentPlayer(playerId)
+  if (!await playersStore.removeRecentPlayer(playerId)) return
   toast.add({
     title: 'Player removed',
     description: `${playerName} was removed from recent players.`,
@@ -344,14 +344,14 @@ function updatePlayerColor(playerId: string, playerName: string, color: string) 
     clearTimeout(existingTimer)
   }
 
-  const timeoutId = setTimeout(() => {
+  const timeoutId = setTimeout(async () => {
     const existingPlayer = playersStore.recentPlayers.find(player => player.id === playerId)
     if (!existingPlayer || existingPlayer.color === normalized) {
       colorUpdateTimeouts.delete(playerId)
       return
     }
 
-    playersStore.updateRecentPlayerColor(playerId, normalized)
+    if (!await playersStore.updateRecentPlayerColor(playerId, normalized)) return
     toast.add({
       title: 'Color updated',
       description: `${playerName} now uses ${normalized}.`,
@@ -363,19 +363,21 @@ function updatePlayerColor(playerId: string, playerName: string, color: string) 
   colorUpdateTimeouts.set(playerId, timeoutId)
 }
 
-function clearRecentPlayers() {
+async function clearRecentPlayers() {
   if (!playersStore.recentPlayers.length) {
     return
   }
 
-  playersStore.clearRecentPlayers()
+  if (!await playersStore.clearRecentPlayers()) return
   toast.add({
     title: 'Recent players cleared',
-    description: 'All remembered players have been removed.',
+    description: 'Guest players have been removed. Your own profile is kept.',
     color: 'error'
   })
 }
 
+watch(() => settingsStore.settings, settings => Object.assign(local, settings, { soundEnabled: settingsStore.soundEnabled }), { deep: true })
+onMounted(async () => { await account.load(); await refreshStats() })
 onBeforeUnmount(() => {
   for (const timeoutId of colorUpdateTimeouts.values()) {
     clearTimeout(timeoutId)

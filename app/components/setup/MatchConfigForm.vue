@@ -129,7 +129,7 @@
 import * as z from 'zod'
 import type { GameMode, GameSettings } from '~~/shared/types/darts'
 import type { RecentPlayer } from '~/stores/players'
-import { fallbackPlayerColor, normalizePlayerColor } from '~/constants/playerColors'
+import { fallbackPlayerColor, normalizePlayerColor } from '~~/shared/utils/playerColors'
 import { usePlayersStore } from '~/stores/players'
 import { useSettingsStore } from '~/stores/settings'
 

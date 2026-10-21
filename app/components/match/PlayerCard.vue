@@ -23,7 +23,7 @@
 
 <script setup lang="ts">
 import type { GameSettings, MatchPlayer } from '~~/shared/types/darts'
-import { formatAtcTarget } from '~/composables/useAtcEngine'
+import { formatAtcTarget } from '~~/shared/utils/atcEngine'
 
 const props = defineProps<{
   player: MatchPlayer

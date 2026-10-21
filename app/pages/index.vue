@@ -3,7 +3,7 @@
     <UPageHero
       headline="Bold Arcade"
       title="Track every leg with confidence"
-      description="Fast local X01 scoring with keyboard-first flow and match history. Built for pub nights, practice sessions, and competitive home games."
+      description="Play X01 or Around the Clock on one device or with friends anywhere. Scores, matches, and statistics stay with your account."
       class="hero-wrap arcade-reveal"
     >
       <UCard class="arcade-glow arcade-reveal" :style="{ '--reveal-delay': '90ms' }">
@@ -25,6 +25,7 @@
     </UPageHero>
 
     <UPageGrid>
+      <UPageCard title="Play with friends" description="Create a room or join with a code." icon="i-lucide-users" to="/rooms" highlight />
       <UPageCard
         title="Start New Match"
         description="Set up players and rules, then jump straight into scoring."
@@ -38,7 +39,7 @@
 
       <UPageCard
         title="Browse History"
-        :description="`${historyCount} match${historyCount === 1 ? '' : 'es'} saved locally.`"
+        :description="`${historyCount} match${historyCount === 1 ? '' : 'es'} saved to your account.`"
         icon="i-lucide-history"
         to="/history"
         class="arcade-reveal arcade-hover-lift"
