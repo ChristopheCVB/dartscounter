@@ -24,6 +24,18 @@ mise exec -- bun run dev
 
 ## Checks
 
+### App icons
+
+Edit `public/logo.svg`, then regenerate the favicon, Apple touch icon, and PWA icons:
+
+```bash
+mise exec -- bun run pwa-assets:generate
+```
+
+The generator uses `minimal2023Preset` from `@vite-pwa/assets-generator`, following [line-learner](https://github.com/ChristopheCVB/line-learner/blob/main/pwa-assets.config.ts). Commit the generated files in `public/` with the SVG source. Builds use these committed assets without regenerating them. This configures icons only; the app has no PWA manifest or service worker.
+
+### Validation
+
 Install Chromium and its system dependencies once before running browser tests:
 
 ```bash

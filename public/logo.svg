@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <title>DartCounter</title>
+  <circle cx="256" cy="256" r="136" stroke="#f97316" stroke-width="28"/>
+  <circle cx="256" cy="256" r="76" stroke="#f97316" stroke-width="24"/>
+  <circle cx="256" cy="256" r="24" fill="#f97316"/>
+  <path d="M256 256 392 120" stroke="#111a2d" stroke-width="32" stroke-linecap="round"/>
+  <path d="M256 256 392 120" stroke="#f8fafc" stroke-width="16" stroke-linecap="round"/>
+  <path d="m344 120 56-56v48h48l-56 56-24-24Z" fill="#f97316" stroke="#111a2d" stroke-width="12" stroke-linejoin="round"/>
+</svg>
