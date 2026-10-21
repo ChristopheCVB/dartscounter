@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.0](https://github.com/ChristopheCVB/dartscounter/compare/v2.0.1...v2.1.0) (2026-10-21)
+
+
+### Features
+
+* streamline match scoring and guest setup ([#8](https://github.com/ChristopheCVB/dartscounter/issues/8)) ([e2b50e5](https://github.com/ChristopheCVB/dartscounter/commit/e2b50e546917c97792dd4582a345290edaa873fa))
+
 ## [2.0.1](https://github.com/ChristopheCVB/dartscounter/compare/v2.0.0...v2.0.1) (2026-10-21)
 
 
