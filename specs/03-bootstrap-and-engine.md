@@ -39,8 +39,8 @@ Implemented baseline:
 
 ## 5) Unit Tests
 
-- Engine tests are in `tests/unit/scoring/useScoringEngine.test.ts`.
-- Match-state flow tests are in `tests/unit/match/useMatchState.test.ts`.
+- Engine tests are in `tests/unit/app/composables/useScoringEngine.test.ts`.
+- Match-state flow tests are in `tests/unit/app/composables/useMatchState.test.ts`.
 - Current command: `bun run test`.
 
 ## 6) Stores and Routes

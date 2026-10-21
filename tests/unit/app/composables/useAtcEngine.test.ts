@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { applyAtcDart, formatAtcTarget, getAtcTargetSegment } from '../../../app/composables/useAtcEngine'
-import type { AtcSettings } from '../../../shared/types/darts'
+import { applyAtcDart, formatAtcTarget, getAtcTargetSegment } from '../../../../app/composables/useAtcEngine'
+import type { AtcSettings } from '../../../../shared/types/darts'
 
 const standard: AtcSettings = { mode: 'atc', fastForward: false }
 const fast: AtcSettings = { mode: 'atc', fastForward: true }

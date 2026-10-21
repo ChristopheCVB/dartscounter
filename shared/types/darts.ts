@@ -45,7 +45,7 @@ export interface PlayerIdentity {
   color: string
 }
 
-export interface Player extends PlayerIdentity {}
+export type Player = PlayerIdentity
 
 export interface PlayerStats {
   dartsThrown: number

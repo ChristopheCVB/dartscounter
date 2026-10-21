@@ -1,0 +1,28 @@
+name: Deploy
+
+on:
+  workflow_call:
+  workflow_dispatch:
+    inputs:
+      force:
+        description: Force redeploy
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    if: github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main'
+    runs-on: self-hosted
+    steps:
+      - name: Deploy
+        uses: christophecvb/coolify-deploy-action@v4.0.0
+        with:
+          token: ${{ secrets.COOLIFY_API_TOKEN }}
+          domain: ${{ vars.COOLIFY_DOMAIN }}
+          uuid: ${{ vars.COOLIFY_APP_UUID }}
+          force: ${{ github.event_name == 'workflow_dispatch' && inputs.force || false }}
+          waitForDeploy: true
+          timeout: 600
