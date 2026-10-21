@@ -98,7 +98,7 @@ Runner registration and Coolify settings are managed outside this repository. Av
 mise exec -- bun update --latest
 ```
 
-Commit `package.json` and `bun.lock` together. When upgrading Bun, keep the exact version in `mise.toml`, `packageManager`, and the Dockerfile's `BUN_VERSION` in sync, and update `engines.bun` to the minimum verified version. Actions read Bun's version from `package.json`.
+Commit `package.json` and `bun.lock` together. When upgrading Bun, keep the exact version in `mise.toml`, `packageManager`, and the Dockerfile's `BUN_VERSION` in sync, and update `engines.bun` to the minimum verified version. Actions read Bun's version from `mise.toml`.
 
 Dependabot checks Bun packages, Docker base images, and GitHub Actions daily at 10:00 UTC, with a six-day cooldown. Minor and patch updates are grouped per ecosystem; major updates remain separate.
 
