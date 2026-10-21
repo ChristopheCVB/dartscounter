@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.1](https://github.com/ChristopheCVB/dartscounter/compare/v2.0.0...v2.0.1) (2026-10-21)
+
+
+### Bug Fixes
+
+* show match rules and per-player recommendations ([#6](https://github.com/ChristopheCVB/dartscounter/issues/6)) ([69300dc](https://github.com/ChristopheCVB/dartscounter/commit/69300dcf0fc70ff4833044964478665158583d34))
+
 ## [2.0.0](https://github.com/ChristopheCVB/dartscounter/compare/v1.0.0...v2.0.0) (2026-10-21)
 
 
