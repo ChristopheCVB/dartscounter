@@ -59,16 +59,18 @@ Implemented in `app/composables/useMatchState.ts`:
 
 `app/pages/match/[id].vue` hosts:
 
-- `Scoreboard`
+- Compact `Scoreboard` player rows below Match Status in the right panel on desktop; below scoring and above Match Status on phones. Legs/progress follow the player's name (`Alice · 2 legs` or `Alice · 6/21`); scores/targets stay visible. The active player is highlighted without a turn badge. Recommendations use short labels (`Finish: T20 • D20`, `Open: any double`) inside the shaded box, keeping the This turn / Next turn heading.
 - `ThrowPad`
-- current turn feedback and status panel
+- Current Turn feedback inside Throw Pad, above the input tabs and near its neutral Undo action
+- Match Status in the right panel on desktop and below scoring on phones, including always-visible rules and no duplicate player list
 
 `app/components/match/ThrowPad.vue` supports:
 
-- quick board throw entry
-- interactive target entry
-- miss input
-- undo
+- Nuxt UI tabs: Interactive Target first and selected on every visit/refresh; manual selection survives live updates
+- Interactive Target: board hits and Miss, with no multiplier or numeric controls
+- Quick Input: Single/Double/Treble selection, segment grid, bulls, Miss, and X01-only numeric keyboard entry
+- Undo in the header, independently available according to server permissions even when scoring is disabled
+- Tabs remain available while watching or disconnected; scoring controls are disabled
 
 ## 6) Active Match Persistence
 

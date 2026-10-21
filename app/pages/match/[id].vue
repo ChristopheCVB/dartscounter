@@ -1,15 +1,9 @@
 <template>
-  <section v-if="match" :aria-busy="matchStore.pending" class="grid items-start gap-5 lg:grid-cols-[2fr_1fr]">
-    <div class="grid gap-4 arcade-reveal">
-      <MatchRulesSummary :settings="match.settings" />
-      <MatchScoreboard
-        :players="match.players"
-        :active-index="match.currentPlayerIndex"
-        :settings="match.settings"
-        :darts-used="match.currentTurnDarts.length"
-        :status="match.status"
-      />
+  <section v-if="match" :aria-busy="matchStore.pending" class="grid items-start gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:grid-rows-[auto_1fr]">
+    <div class="min-w-0 arcade-reveal lg:row-span-2">
       <MatchThrowPad
+        v-model:input-mode="inputMode"
+        :show-numeric="match.settings.mode === 'x01'"
         :multiplier="matchStore.selectedMultiplier"
         :numeric-buffer="match.settings.mode === 'atc' ? '' : matchStore.numericBuffer"
         :player-color="currentPlayerColor"
@@ -23,72 +17,72 @@
         @backspace="matchStore.popNumericDigit"
         @submit-numeric="matchStore.submitNumericThrow"
         @dart="matchStore.addDart"
-      />
-    </div>
-
-    <div class="grid gap-4 arcade-reveal" :style="{ '--reveal-delay': '90ms' }">
-      <UCard class="arcade-glow">
-        <template #header>
-          <h3 class="m-0 arcade-title text-sm">Match Status</h3>
+      >
+        <template #turn>
+          <MatchTurnTimeline :darts="match.currentTurnDarts" :settings="match.settings" />
         </template>
-
-        <UCard>
-          <p class="m-0 mb-2 text-muted">All Players</p>
-          <div class="grid gap-[0.45rem]">
-            <div
-              v-for="(player, idx) in match.players"
-              :key="player.id"
-              class="score-row"
-              :class="{ active: idx === match.currentPlayerIndex }"
-              :style="{
-                borderColor: idx === match.currentPlayerIndex
-                  ? player.color
-                  : `color-mix(in srgb, ${player.color} 42%, var(--ui-border))`,
-                background: idx === match.currentPlayerIndex
-                  ? `color-mix(in srgb, ${player.color} 12%, var(--ui-bg))`
-                  : 'color-mix(in srgb, var(--ui-bg) 90%, transparent)'
-              }"
-            >
-              <span class="flex items-center gap-1.5"><span class="score-row-dot" :style="{ background: player.color }" />{{ player.name }}</span>
-              <strong>{{ match.settings.mode === 'atc' ? `T${player.atcTarget ?? 1}` : player.score }}</strong>
-            </div>
-          </div>
-        </UCard>
-        <p class="m-0">Player: <strong :style="{ color: currentPlayerColor }">{{ currentPlayerName }}</strong></p>
-        <p class="m-0 text-muted">Turn {{ match.currentTurnIndex + 1 }} · Darts {{ match.currentTurnDarts.length }}/3</p>
-        <p v-if="matchStore.transitionLocked" class="m-0 text-muted">Auto-advancing turn...</p>
-        <p class="text-muted">{{ matchStore.connected ? (matchStore.canScore ? 'Your player’s turn' : 'Watching · waiting for the controlling player') : 'Connecting · scoring paused' }}</p>
-        <UAlert v-if="matchStore.error" color="error" :title="matchStore.error" />
-        <UButton v-if="matchStore.uncertain" :loading="matchStore.pending" @click="matchStore.retryUncertain">Resolve pending dart</UButton>
-
-        <div class="grid gap-2">
-          <UButton v-if="lastSummary" color="primary" variant="soft" @click="showRecap = true">Show Match Recap</UButton>
-          <UButton color="neutral" variant="soft" @click="showShortcuts = true">Keyboard shortcuts (?)</UButton>
-          <UButton v-if="matchStore.room" :to="`/room/${matchStore.room.id}`" color="neutral" variant="soft">Room lobby</UButton>
-          <UButton v-if="match.status === 'in_progress' && matchStore.room?.ownerId === account.userId" color="error" variant="soft" :disabled="!matchStore.connected || matchStore.pending || !!matchStore.uncertain" @click="exitMatch">End Match</UButton>
-        </div>
-      </UCard>
-
-      <MatchTurnTimeline
-        :darts="match.currentTurnDarts"
-        :settings="match.settings"
-      />
+      </MatchThrowPad>
     </div>
+
+    <MatchScoreboard
+      :players="match.players"
+      :active-index="match.currentPlayerIndex"
+      :settings="match.settings"
+      :darts-used="match.currentTurnDarts.length"
+      :status="match.status"
+      class="arcade-reveal lg:col-start-2 lg:row-start-2"
+      :style="{ '--reveal-delay': '90ms' }"
+    />
+
+    <UCard as="section" aria-label="Match Status" class="min-w-0 text-sm arcade-glow arcade-reveal lg:col-start-2 lg:row-start-1" :ui="{ header: 'px-3 py-2 sm:px-3', body: 'grid gap-3 p-3 sm:p-3' }" :style="{ '--reveal-delay': '90ms' }">
+      <template #header>
+        <h3 class="m-0 arcade-title text-sm">Match Status</h3>
+      </template>
+
+      <div class="grid gap-1 wrap-anywhere">
+        <p class="m-0 truncate" :title="currentPlayerName">Player: <strong :style="{ color: currentPlayerColor }">{{ currentPlayerName }}</strong></p>
+        <p class="m-0 text-muted">Turn {{ match.currentTurnIndex + 1 }} · Darts {{ match.currentTurnDarts.length }}/3</p>
+        <p role="status" class="m-0 text-muted leading-5">{{ scoringStatus }}</p>
+      </div>
+
+      <MatchRulesSummary :settings="match.settings" embedded />
+
+      <div class="flex flex-wrap gap-2">
+        <UButton v-if="lastSummary" color="primary" variant="soft" @click="showRecap = true">Show Match Recap</UButton>
+        <UButton color="neutral" variant="soft" @click="showShortcuts = true">Keyboard shortcuts (?)</UButton>
+        <UButton v-if="matchStore.room" :to="`/room/${matchStore.room.id}`" color="neutral" variant="soft">Room lobby</UButton>
+        <UButton v-if="match.status === 'in_progress' && matchStore.room?.ownerId === account.userId" color="error" variant="soft" :disabled="!matchStore.connected || matchStore.pending || !!matchStore.uncertain" @click="exitMatch">End Match</UButton>
+      </div>
+    </UCard>
 
     <div v-if="lastSummary" class="lg:col-span-2 arcade-reveal" :style="{ '--reveal-delay': '150ms' }">
       <MatchStats :summary="lastSummary" />
     </div>
 
+    <Teleport to="body">
+      <UAlert
+        v-if="matchStore.error || (matchStore.uncertain && !matchStore.pending)"
+        role="alert"
+        color="error"
+        :title="matchStore.error || 'Dart needs confirmation'"
+        class="fixed right-4 bottom-4 z-50 w-sm max-w-[calc(100vw-2rem)] shadow-lg"
+      >
+        <template #actions>
+          <UButton v-if="matchStore.uncertain" :loading="matchStore.pending" color="error" @click="matchStore.retryUncertain">Resolve pending dart</UButton>
+        </template>
+      </UAlert>
+    </Teleport>
+
     <UModal v-model:open="showShortcuts" title="Keyboard shortcuts">
       <template #body>
         <div class="grid gap-2 text-sm">
-          <p class="flex items-center justify-between gap-4"><span>Set multiplier</span> <span class="flex items-center gap-1"><UKbd value="s" /><UKbd value="d" /><UKbd value="t" /></span></p>
+          <p class="flex items-center justify-between gap-4"><span>Set multiplier (Quick Input)</span> <span class="flex items-center gap-1"><UKbd value="s" /><UKbd value="d" /><UKbd value="t" /></span></p>
           <p class="flex items-center justify-between gap-4"><span>Bull 25 / 50</span> <span class="flex items-center gap-1"><UKbd value="b" /><UKbd>Shift+B</UKbd></span></p>
           <p class="flex items-center justify-between gap-4"><span>Miss</span> <UKbd value="m" /></p>
           <p class="flex items-center justify-between gap-4"><span>Undo</span> <UKbd value="u" /></p>
-          <p class="flex items-center justify-between gap-4"><span>Numeric buffer (0-60)</span> <UKbd>0-9</UKbd></p>
-          <p class="flex items-center justify-between gap-4"><span>Remove digit</span> <UKbd value="backspace" /></p>
-          <p class="flex items-center justify-between gap-4"><span>Submit numeric throw</span> <UKbd value="enter" /></p>
+          <p class="flex items-center justify-between gap-4"><span>Numeric buffer (Quick Input · X01, 0-60)</span> <UKbd>0-9</UKbd></p>
+          <p class="flex items-center justify-between gap-4"><span>Remove digit (Quick Input · X01)</span> <UKbd value="backspace" /></p>
+          <p class="flex items-center justify-between gap-4"><span>Submit numeric throw (Quick Input · X01)</span> <UKbd value="enter" /></p>
           <p class="flex items-center justify-between gap-4"><span>Toggle shortcuts modal</span> <UKbd>?</UKbd></p>
           <p class="flex items-center justify-between gap-4"><span>Close modal / clear buffer</span> <UKbd value="esc" /></p>
         </div>
@@ -181,6 +175,7 @@ const matchStore = useMatchStore()
 const account = useAccountStore()
 const { playConfetti } = useThrowSounds()
 
+const inputMode = ref<'target' | 'quick'>('target')
 const showShortcuts = ref(false)
 const showRecap = ref(false)
 const celebratedMatchId = ref('')
@@ -198,6 +193,17 @@ const match = computed(() => {
 
 const currentPlayerName = computed(() => matchStore.currentPlayer?.name || '-')
 const currentPlayerColor = computed(() => matchStore.currentPlayer?.color || 'var(--ui-text)')
+const scoringStatus = computed(() => {
+  if (!matchStore.connected) return 'Connecting · scoring paused'
+  if (matchStore.pending) return 'Saving dart...'
+  if (matchStore.uncertain) return 'Scoring paused · dart needs confirmation'
+  if (matchStore.transitionLocked) return 'Auto-advancing turn...'
+  if (match.value?.status === 'finished') return 'Match complete'
+  if (match.value?.status === 'abandoned') return 'Match ended'
+  return matchStore.room?.controllers[matchStore.currentPlayer?.id ?? ''] === account.userId
+    ? 'Your player’s turn'
+    : 'Watching · waiting for the controlling player'
+})
 const lastSummary = computed(() => matchStore.room?.summary ?? null)
 const winnerColor = computed(() => {
   if (!match.value?.winnerId) {
@@ -352,16 +358,23 @@ const guarded = (fn: () => void) => {
   fn()
 }
 
-defineShortcuts({
-  s: () => guarded(() => matchStore.setMultiplier(1)),
-  d: () => guarded(() => matchStore.setMultiplier(2)),
-  t: () => guarded(() => matchStore.setMultiplier(3)),
+const quickInput = (fn: () => void, numeric = false) => {
+  if (inputMode.value !== 'quick' || (numeric && match.value?.settings.mode !== 'x01')) return
+  guarded(fn)
+}
+
+const activeElement = useActiveElement()
+
+defineShortcuts(computed(() => ({
+  s: () => quickInput(() => matchStore.setMultiplier(1)),
+  d: () => quickInput(() => matchStore.setMultiplier(2)),
+  t: () => quickInput(() => matchStore.setMultiplier(3)),
   b: () => guarded(() => matchStore.addBull(false)),
   shift_b: () => guarded(() => matchStore.addBull(true)),
   m: () => guarded(() => matchStore.addMiss()),
   u: () => { if (!isTypingInInput() && !showShortcuts.value && !showRecap.value) void matchStore.undoLastDart() },
-  enter: () => guarded(() => matchStore.submitNumericThrow()),
-  backspace: () => guarded(() => matchStore.popNumericDigit()),
+  enter: activeElement.value?.closest('button, [role="tab"]') ? undefined : () => quickInput(() => matchStore.submitNumericThrow(), true),
+  backspace: () => quickInput(() => matchStore.popNumericDigit(), true),
   escape: () => {
     if (showShortcuts.value) {
       showShortcuts.value = false
@@ -376,17 +389,17 @@ defineShortcuts({
   '?': () => {
     showShortcuts.value = !showShortcuts.value
   },
-  0: () => guarded(() => matchStore.appendNumericDigit('0')),
-  1: () => guarded(() => matchStore.appendNumericDigit('1')),
-  2: () => guarded(() => matchStore.appendNumericDigit('2')),
-  3: () => guarded(() => matchStore.appendNumericDigit('3')),
-  4: () => guarded(() => matchStore.appendNumericDigit('4')),
-  5: () => guarded(() => matchStore.appendNumericDigit('5')),
-  6: () => guarded(() => matchStore.appendNumericDigit('6')),
-  7: () => guarded(() => matchStore.appendNumericDigit('7')),
-  8: () => guarded(() => matchStore.appendNumericDigit('8')),
-  9: () => guarded(() => matchStore.appendNumericDigit('9'))
-})
+  0: () => quickInput(() => matchStore.appendNumericDigit('0'), true),
+  1: () => quickInput(() => matchStore.appendNumericDigit('1'), true),
+  2: () => quickInput(() => matchStore.appendNumericDigit('2'), true),
+  3: () => quickInput(() => matchStore.appendNumericDigit('3'), true),
+  4: () => quickInput(() => matchStore.appendNumericDigit('4'), true),
+  5: () => quickInput(() => matchStore.appendNumericDigit('5'), true),
+  6: () => quickInput(() => matchStore.appendNumericDigit('6'), true),
+  7: () => quickInput(() => matchStore.appendNumericDigit('7'), true),
+  8: () => quickInput(() => matchStore.appendNumericDigit('8'), true),
+  9: () => quickInput(() => matchStore.appendNumericDigit('9'), true)
+})))
 
 async function exitMatch() {
   if (!window.confirm('End this match without a winner?')) return
@@ -403,23 +416,3 @@ onMounted(async () => {
 })
 onBeforeUnmount(() => matchStore.disconnect())
 </script>
-
-<style scoped>
-.score-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.55rem 0.65rem;
-  border: 1px solid color-mix(in srgb, var(--ui-border) 70%, transparent);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--ui-bg) 90%, transparent);
-}
-
-.score-row-dot {
-  width: 0.54rem;
-  height: 0.54rem;
-  border-radius: 999px;
-  display: inline-block;
-}
-
-</style>

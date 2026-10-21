@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { cleanupDatabase, prepareDatabase, testPool, testUser } from '../../helpers/database'
-import { createRoom, ensureSelf, joinRoom, mutateRoom, readRoom } from '../../../server/utils/rooms'
+import { createRoom, ensureSelf, joinRoom, mutateRoom, readRoom, transaction } from '../../../server/utils/rooms'
 import { getPool } from '../../../server/db/db'
-import { readAccount } from '../../../server/utils/account'
+import { ensurePlayers, readAccount } from '../../../server/utils/account'
 import type { RoomView } from '../../../shared/types/rooms'
 import type { RoomAction } from '../../../shared/utils/validation'
 import { roomActionSchema } from '../../../shared/utils/validation'
@@ -25,6 +25,23 @@ async function started(mode: 'x01' | 'atc' = 'x01') {
 }
 
 describe('server-authoritative rooms', () => {
+  it.each(['x01', 'atc'] as const)('starts %s with one account controlling itself and a guest', async mode => {
+    const owner = await testUser('Owner')
+    let room = await createRoom(owner, mode === 'x01' ? { mode, startScore: 301, doubleIn: false, doubleOut: true, legsTarget: 1 } : { mode, fastForward: false })
+    const self = room.members[0]!.roster[0]!
+    const [guest] = await transaction(db => ensurePlayers(db, owner.id, [{ name: 'Guest', color: '#30c981' }]))
+    room = await act(room, owner.id, { type: 'roster', playerIds: [self.id, guest!.id] })
+    room = await act(room, owner.id, { type: 'ready', ready: true })
+    room = await act(room, owner.id, { type: 'start' })
+
+    expect(room.members).toHaveLength(1)
+    expect(room.participantIds).toEqual([owner.id])
+    expect(room.match!.players).toHaveLength(2)
+    expect(room.controllers).toEqual({ [self.id]: owner.id, [guest!.id]: owner.id })
+    for (let dart = 0; dart < 6; dart++) room = await act(room, owner.id, { type: 'dart', dart: { segment: 0, multiplier: 1 } })
+    expect(new Set(room.match!.throws.map(dart => dart.playerId))).toEqual(new Set([self.id, guest!.id]))
+  })
+
   it('requires readiness, own profiles, ownership, and distinct player names', async () => {
     const alice = await testUser('Alice')
     const bob = await testUser('Bob')

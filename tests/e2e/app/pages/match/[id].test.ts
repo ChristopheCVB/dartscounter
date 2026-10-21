@@ -72,53 +72,211 @@ describe('local matches', { timeout: 60_000 }, async () => {
     await page.getByRole('heading', { name: 'Throw Pad', exact: true }).waitFor()
   }
 
+  const activePlayer = (target = page) => target.getByRole('article').and(target.locator('[aria-current="true"]'))
+  const activeScore = (target = page) => activePlayer(target).locator('p.font-extrabold')
+  const scores = (target = page) => target.getByRole('article').locator('p.font-extrabold')
+
   async function throwDart(segment: number) {
+    await page.getByRole('tab', { name: 'Quick Input', exact: true }).click()
     await page.getByText('Auto-advancing turn...', { exact: true }).waitFor({ state: 'hidden' })
     await page.getByRole('button', { name: String(segment), exact: true }).click()
     await expect.poll(() => page.locator('section[aria-busy="true"]').count()).toBe(0)
   }
 
+  it('defaults to the target, scores board rings and Miss, and keeps turn feedback beside Undo', async () => {
+    await startMatch()
+    const targetTab = page.getByRole('tab', { name: 'Interactive Target', exact: true })
+    expect(await targetTab.getAttribute('aria-selected')).toBe('true')
+    const status = page.getByRole('region', { name: 'Match Status', exact: true })
+    const players = page.getByRole('region', { name: 'Players', exact: true })
+    expect(await players.getByRole('article').count()).toBe(2)
+    expect(await status.getByRole('region', { name: 'Match rules' }).textContent()).toContain('X01 · 501')
+    expect(await status.textContent()).not.toContain('All Players')
+    const turn = page.getByRole('region', { name: 'Current turn', exact: true })
+    const pad = page.getByRole('region', { name: 'Throw Pad', exact: true })
+    expect(await pad.getByRole('button', { name: 'Undo', exact: true }).count()).toBe(1)
+    expect(await page.getByRole('button', { name: 'Single', exact: true }).count()).toBe(0)
+    const board = page.getByRole('img', { name: 'Interactive darts target' })
+    await expect.poll(() => page.getByRole('button', { name: 'Miss', exact: true }).isEnabled()).toBe(true)
+    for (const [path, score] of [[0, '481'], [1, '441'], [3, '381']] as const) {
+      await board.locator('path').nth(path).click()
+      await expect.poll(() => scores().first().textContent()).toBe(score)
+    }
+    await page.getByRole('button', { name: 'Undo', exact: true }).click()
+    await expect.poll(() => activeScore().textContent()).toBe('441')
+    await expect.poll(() => turn.textContent()).toContain('2/3')
+    await page.getByText('Auto-advancing turn...', { exact: true }).waitFor({ state: 'hidden' })
+    await page.getByRole('button', { name: 'Miss', exact: true }).click()
+    await expect.poll(() => page.getByText('Turn 2 · Darts 0/3', { exact: true }).count()).toBe(1)
+    expect(await targetTab.getAttribute('aria-selected')).toBe('true')
+
+    for (const width of [390, 1280]) {
+      await page.setViewportSize({ width, height: 900 })
+      const tabBox = (await page.getByRole('tablist').boundingBox())!
+      const statusBox = (await status.boundingBox())!
+      const padBox = (await pad.boundingBox())!
+      const playersBox = (await players.boundingBox())!
+      const playerBoxes = await players.getByRole('article').evaluateAll(cards => cards.map(card => {
+        const { x, y, width, height } = card.getBoundingClientRect()
+        return { x, y, width, height }
+      }))
+      expect(tabBox.width).toBeLessThan(width)
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+      expect(playerBoxes[1]!.y).toBeGreaterThanOrEqual(playerBoxes[0]!.y + playerBoxes[0]!.height)
+      if (width < 1024) {
+        expect(playersBox.y).toBeGreaterThanOrEqual(padBox.y + padBox.height)
+        expect(statusBox.y).toBeGreaterThanOrEqual(playersBox.y + playersBox.height)
+      } else {
+        expect(statusBox.x).toBeGreaterThanOrEqual(padBox.x + padBox.width)
+        expect(playersBox.x).toBe(statusBox.x)
+        expect(playersBox.y).toBeGreaterThanOrEqual(statusBox.y + statusBox.height)
+      }
+    }
+    await page.getByRole('tab', { name: 'Quick Input', exact: true }).click()
+    await page.goto(page.url(), { waitUntil: 'hydration' })
+    expect(await page.getByRole('tab', { name: 'Interactive Target', exact: true }).getAttribute('aria-selected')).toBe('true')
+    await expect.poll(() => scores().allTextContents()).toEqual(['441', '501'])
+  })
+
+  it('restricts numeric and multiplier shortcuts to Quick Input without scoring during tab navigation', async () => {
+    await startMatch()
+    await expect.poll(() => page.getByRole('button', { name: 'Miss', exact: true }).isEnabled()).toBe(true)
+    await page.keyboard.press('t')
+    await page.keyboard.press('2')
+    await page.keyboard.press('0')
+    await page.keyboard.press('Enter')
+    await page.getByRole('tab', { name: 'Quick Input', exact: true }).click()
+    expect(await page.getByRole('button', { name: 'Single', exact: true }).getAttribute('aria-pressed')).toBe('true')
+    const buffer = page.getByLabel('Numeric throw (0-60)', { exact: true })
+    expect(await buffer.inputValue()).toBe('')
+    await page.keyboard.press('d')
+    expect(await page.getByRole('button', { name: 'Double', exact: true }).getAttribute('aria-pressed')).toBe('true')
+    await page.keyboard.press('2')
+    await page.keyboard.press('0')
+    expect(await buffer.inputValue()).toBe('20')
+    await page.keyboard.press('Enter')
+    expect(await scores().allTextContents()).toEqual(['501', '501'])
+    await page.keyboard.press('ArrowLeft')
+    expect(await page.getByRole('tab', { name: 'Interactive Target', exact: true }).getAttribute('aria-selected')).toBe('true')
+    await page.keyboard.press('Backspace')
+    await page.keyboard.press('ArrowRight')
+    expect(await buffer.inputValue()).toBe('20')
+    expect(await page.getByRole('button', { name: 'Double', exact: true }).getAttribute('aria-pressed')).toBe('true')
+    await page.getByRole('heading', { name: 'Throw Pad', exact: true }).click()
+    await page.keyboard.press('Enter')
+    await expect.poll(() => activeScore().textContent()).toBe('481')
+    expect(await buffer.inputValue()).toBe('')
+    await page.getByRole('tab', { name: 'Interactive Target', exact: true }).click()
+    await page.keyboard.press('m')
+    await expect.poll(() => page.getByText('Turn 1 · Darts 2/3', { exact: true }).count()).toBe(1)
+    await page.keyboard.press('u')
+    await expect.poll(() => page.getByText('Turn 1 · Darts 1/3', { exact: true }).count()).toBe(1)
+    await page.keyboard.press('b')
+    await expect.poll(() => activeScore().textContent()).toBe('456')
+    await page.getByRole('button', { name: 'Miss', exact: true }).focus()
+    await page.keyboard.press('Enter')
+    await expect.poll(() => page.getByText('Turn 2 · Darts 0/3', { exact: true }).count()).toBe(1)
+  })
+
+  it.each([390, 1280])('keeps match status stable while saving and recovering a dart at %ipx', async width => {
+    await startMatch()
+    await page.setViewportSize({ width, height: 900 })
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    const status = page.getByRole('region', { name: 'Match Status', exact: true })
+    const players = page.getByRole('region', { name: 'Players', exact: true })
+    await expect.poll(() => status.getByRole('status').textContent()).toBe('Your player’s turn')
+    const statusBox = (await status.boundingBox())!
+    const playersBox = (await players.boundingBox())!
+    const requestIds: string[] = []
+    let releaseResponse!: () => void
+    const responseGate = new Promise<void>(resolve => { releaseResponse = resolve })
+    await page.route('**/api/rooms/*/actions', async route => {
+      requestIds.push(route.request().postDataJSON().requestId)
+      if (requestIds.length === 1) {
+        // Commit the dart, then lose its response to exercise safe recovery.
+        const response = await route.fetch()
+        expect(response.status()).toBe(200)
+        await responseGate
+      }
+      if (requestIds.length <= 2) {
+        await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ statusMessage: 'Dart response lost' }) })
+      } else await route.continue()
+    })
+
+    try {
+      await page.getByRole('img', { name: 'Interactive darts target' }).locator('path').first().click()
+      await expect.poll(() => status.getByRole('status').textContent()).toBe('Saving dart...')
+      expect(await page.getByRole('button', { name: 'Resolve pending dart', exact: true }).count()).toBe(0)
+      expect((await status.boundingBox())!.height).toBe(statusBox.height)
+      expect((await players.boundingBox())!.y).toBe(playersBox.y)
+      releaseResponse()
+
+      const recovery = page.getByRole('alert').filter({ hasText: 'Dart response lost' })
+      await recovery.getByRole('button', { name: 'Resolve pending dart', exact: true }).waitFor()
+      expect(await status.getByRole('button', { name: 'Resolve pending dart', exact: true }).count()).toBe(0)
+      expect((await status.boundingBox())!.height).toBe(statusBox.height)
+      expect((await players.boundingBox())!.y).toBe(playersBox.y)
+      await recovery.getByRole('button', { name: 'Resolve pending dart', exact: true }).click()
+      await recovery.waitFor({ state: 'hidden' })
+      await expect.poll(() => status.getByRole('status').textContent()).toBe('Your player’s turn')
+      expect(await activeScore().textContent()).toBe('481')
+      expect(requestIds).toHaveLength(3)
+      expect(new Set(requestIds).size).toBe(1)
+      expect((await status.boundingBox())!.height).toBe(statusBox.height)
+      expect((await players.boundingBox())!.y).toBe(playersBox.y)
+
+      const target = page.getByRole('img', { name: 'Interactive darts target' }).locator('path').first()
+      await target.click()
+      await expect.poll(() => activeScore().textContent()).toBe('461')
+      await target.click()
+      await expect.poll(() => status.getByRole('status').textContent()).toBe('Auto-advancing turn...')
+      expect((await status.boundingBox())!.height).toBe(statusBox.height)
+      expect((await players.boundingBox())!.y).toBe(playersBox.y)
+    } finally { releaseResponse() }
+  })
+
   it('scores, advances turns, undoes, and restores an active match after reload', async () => {
     await startMatch()
     expect(await page.getByRole('region', { name: 'Match rules' }).textContent()).toContain('X01 · 501')
-    const firstPlayer = await page.locator('.score-row.active').locator('span').first().textContent()
+    const firstPlayer = await activePlayer().getAttribute('aria-label')
     await throwDart(20)
     await throwDart(20)
     await throwDart(20)
-    await expect.poll(() => page.locator('.score-row.active').textContent()).not.toContain(firstPlayer!)
-    expect(await page.locator('.score-row strong').allTextContents()).toEqual(['441', '501'])
+    await expect.poll(() => activePlayer().getAttribute('aria-label')).not.toContain(firstPlayer!)
+    expect(await scores().allTextContents()).toEqual(['441', '501'])
 
     await page.getByRole('button', { name: 'Undo', exact: true }).click()
-    await expect.poll(() => page.locator('.score-row.active strong').textContent()).toBe('461')
-    expect(await page.locator('.score-row.active').textContent()).toContain(firstPlayer!)
+    await expect.poll(() => activeScore().textContent()).toBe('461')
+    expect(await activePlayer().getAttribute('aria-label')).toContain(firstPlayer!)
 
     await page.goto(page.url(), { waitUntil: 'hydration' })
-    await expect.poll(() => page.locator('.score-row strong').allTextContents()).toEqual(['461', '501'])
-    expect(await page.locator('.score-row.active').textContent()).toContain(firstPlayer!)
+    await expect.poll(() => scores().allTextContents()).toEqual(['461', '501'])
+    expect(await activePlayer().getAttribute('aria-label')).toContain(firstPlayer!)
     expect(await page.getByText('Turn 1 · Darts 2/3', { exact: true }).count()).toBe(1)
   })
 
   it('advances Around the Clock targets only on the required segment', async () => {
     await startMatch('atc')
     await throwDart(20)
-    expect(await page.locator('.score-row.active strong').textContent()).toBe('T1')
+    expect(await activeScore().textContent()).toBe('Target: 1')
     await throwDart(1)
-    await expect.poll(() => page.locator('.score-row.active strong').textContent()).toBe('T2')
+    await expect.poll(() => activeScore().textContent()).toBe('Target: 2')
     await throwDart(2)
-    await expect.poll(() => page.locator('.score-row strong').allTextContents()).toEqual(['T3', 'T1'])
+    await expect.poll(() => scores().allTextContents()).toEqual(['Target: 3', 'Target: 1'])
   })
 
   it('shows a checkout recap and persists completed match history', async () => {
     await startMatch()
-    const winner = (await page.locator('.score-row.active span').first().textContent())!.trim()
-    await page.getByRole('button', { name: 'T', exact: true }).click()
+    const winner = (await activePlayer().getAttribute('aria-label'))!
+    await page.getByRole('tab', { name: 'Quick Input', exact: true }).click()
+    await page.getByRole('button', { name: 'Treble', exact: true }).click()
     // Both players score 180 in each of the first two rounds.
     for (let dart = 0; dart < 12; dart++) {
       await throwDart(20)
     }
     await throwDart(20)
     await throwDart(19)
-    await page.getByRole('button', { name: 'D', exact: true }).click()
+    await page.getByRole('button', { name: 'Double', exact: true }).click()
     await throwDart(12)
 
     const recap = page.getByRole('dialog')
@@ -166,29 +324,32 @@ describe('local matches', { timeout: 60_000 }, async () => {
       const controllerId = room.controllers[room.match!.players[0]!.id]
       const controller = controllerId === alice.user.id ? page : bob.page
       const watcher = controller === page ? bob.page : page
+      await controller.getByRole('tab', { name: 'Quick Input', exact: true }).click()
+      await watcher.getByRole('tab', { name: 'Quick Input', exact: true }).click()
       await expect.poll(() => controller.getByRole('button', { name: '1', exact: true }).isEnabled()).toBe(true)
       expect(await watcher.getByRole('button', { name: '1', exact: true }).isDisabled()).toBe(true)
       await controller.getByRole('button', { name: '1', exact: true }).click()
-      await expect.poll(() => watcher.locator('.score-row.active strong').textContent()).toBe('T2')
+      await expect.poll(() => activeScore(watcher).textContent()).toBe('Target: 2')
       expect(await watcher.getByRole('region', { name: 'Match rules' }).textContent()).toContain('Fast Forward off')
       const throwingPlayer = room.match!.players[0]!
       const waitingPlayer = room.match!.players[1]!
-      await expect.poll(() => watcher.getByRole('article', { name: throwingPlayer.name, exact: true }).textContent()).toContain('Hit segment 2.')
+      await expect.poll(() => watcher.getByRole('article', { name: throwingPlayer.name, exact: true }).textContent()).toContain('Aim: 2')
       const waitingCard = watcher.getByRole('article', { name: waitingPlayer.name, exact: true })
       expect(await waitingCard.textContent()).toContain('Next turn')
-      expect(await waitingCard.textContent()).toContain('Hit segment 1.')
+      expect(await waitingCard.textContent()).toContain('Aim: 1')
       await expect.poll(() => watcher.getByRole('button', { name: 'Undo', exact: true }).isEnabled()).toBe(true)
       await watcher.getByRole('button', { name: 'Undo', exact: true }).click()
-      await expect.poll(() => controller.locator('.score-row.active strong').textContent()).toBe('T1')
+      await expect.poll(() => activeScore(controller).textContent()).toBe('Target: 1')
       await controller.context().setOffline(true)
       await controller.context().setOffline(false)
       await controller.goto(controller.url(), { waitUntil: 'hydration' })
+      await controller.getByRole('tab', { name: 'Quick Input', exact: true }).click()
       await expect.poll(() => controller.getByRole('button', { name: '1', exact: true }).isEnabled()).toBe(true)
       await post<RoomView>(spectator.page, '/api/rooms/join', { code: room.code })
       await spectator.page.goto(url(`/match/${room.match!.id}`), { waitUntil: 'hydration' })
       expect(await spectator.page.getByRole('button', { name: 'Undo', exact: true }).isDisabled()).toBe(true)
+      await spectator.page.getByRole('tab', { name: 'Quick Input', exact: true }).click()
       expect(await spectator.page.getByRole('button', { name: '1', exact: true }).isDisabled()).toBe(true)
-      expect(await spectator.page.locator('.score-row').count()).toBe(3)
       expect(await spectator.page.getByRole('article').count()).toBe(3)
       expect(await spectator.page.getByRole('region', { name: 'Match rules' }).textContent()).toContain('Around the Clock')
       const forbidden = await spectator.page.request.post(url(`/api/rooms/${room.id}/actions`), { headers: { Origin: origin }, data: { requestId: crypto.randomUUID(), expectedRevision: (await (await spectator.page.request.get(url(`/api/rooms/${room.id}`))).json()).revision, action: { type: 'dart', dart: { segment: 1, multiplier: 1 } } } })
@@ -213,8 +374,8 @@ describe('local matches', { timeout: 60_000 }, async () => {
     await page.unroute('**/api/rooms/*/actions')
     await page.getByPlaceholder('Guest name', { exact: true }).fill('Room guest')
     await page.getByRole('button', { name: 'Add guest', exact: true }).click()
-    await page.getByRole('checkbox', { name: 'Room guest', exact: true }).click()
-    await page.getByRole('button', { name: 'Save roster', exact: true }).click()
+    await expect.poll(() => page.getByRole('checkbox', { name: 'Room guest', exact: true }).isChecked()).toBe(true)
+    await expect.poll(() => page.getByRole('button', { name: 'Ready', exact: true }).isEnabled()).toBe(true)
     await page.getByRole('button', { name: 'Ready', exact: true }).click()
     await expect.poll(() => page.getByRole('button', { name: 'Start match', exact: true }).isEnabled()).toBe(true)
     await page.getByRole('combobox', { name: 'Game mode', exact: true }).click()
@@ -227,6 +388,6 @@ describe('local matches', { timeout: 60_000 }, async () => {
     await page.getByRole('button', { name: 'Start match', exact: true }).click()
     await page.getByRole('link', { name: 'Open match', exact: true }).click()
     await page.waitForURL(/\/match\/(?!new)[^/]+$/)
-    await expect.poll(() => page.locator('.score-row strong').allTextContents()).toEqual(['T1', 'T1'])
+    await expect.poll(() => scores().allTextContents()).toEqual(['Target: 1', 'Target: 1'])
   })
 })

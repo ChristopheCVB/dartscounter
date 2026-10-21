@@ -16,5 +16,9 @@ describe('match rules summary', () => {
   ])('displays all saved options for $settings', async ({ settings, labels }) => {
     wrapper = await mountSuspended(RulesSummary, { props: { settings } })
     for (const label of labels) expect(wrapper.text()).toContain(label)
+    await wrapper.setProps({ embedded: true })
+    expect(wrapper.element.tagName).toBe('SECTION')
+    expect(wrapper.attributes('aria-label')).toBe('Match rules')
+    for (const label of labels) expect(wrapper.text()).toContain(label)
   })
 })

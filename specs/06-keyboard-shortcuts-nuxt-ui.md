@@ -20,16 +20,16 @@ Last verified against code: 2026-03-01
 
 ## Shortcut Map
 
-- `s`: set single multiplier
-- `d`: set double multiplier
-- `t`: set treble multiplier
+- `s`: set single multiplier (Quick Input only)
+- `d`: set double multiplier (Quick Input only)
+- `t`: set treble multiplier (Quick Input only)
 - `b`: bull 25
 - `shift+b`: bull 50
 - `m`: miss 0
 - `u`: undo last dart
-- `0-9`: append numeric input buffer
-- `backspace`: remove last numeric digit
-- `enter`: submit numeric input
+- `0-9`: append numeric input buffer (Quick Input, X01 only)
+- `backspace`: remove last numeric digit (Quick Input, X01 only)
+- `enter`: submit numeric input (Quick Input, X01 only; focused buttons/tabs retain normal activation)
 - `?`: toggle shortcuts help
 - `escape`: close help or clear numeric buffer
 
@@ -43,6 +43,8 @@ For non-modal actions, require all:
 - not in auto-end transition lock
 
 Current implementation uses state/UI guards above. A dedicated modifier-key guard (`metaKey`/`ctrlKey`/`altKey`) is a potential hardening follow-up.
+
+Bull, Miss, and Undo remain available in either input tab. Tab arrow keys and Enter retain accessible navigation/activation without submitting numeric darts. Switching tabs preserves the multiplier and numeric buffer.
 
 ## Numeric Buffer Rules
 

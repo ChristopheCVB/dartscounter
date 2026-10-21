@@ -14,16 +14,17 @@ This specification supersedes the localStorage/no-auth requirements in specifica
 ## Rooms
 
 - Signed-in users create a room or join with an eight-character code. Membership and codes survive restarts. Owners can rotate codes or remove members between matches.
-- Each account selects its own players or watches with an empty roster. Selected accounts must all mark Ready. Changing rules or a roster clears readiness.
+- Each account selects its own players or watches with an empty roster. Adding a guest in the lobby selects that guest and saves the account's roster. Selected accounts must all mark Ready. Changing rules or a roster clears readiness.
 - The owner starts with at least two uniquely named players; order is randomized. X01 and Around the Clock use all existing rule options.
 - Joining during a match allows watching; the roster stays fixed until the next match. An account may participate in only one active match.
 - Ownership does not transfer on disconnection. Only each account can score for itself and its guests. Play waits when an absent controller's turn arrives.
 - Any current-match participant may undo the latest dart, including a winning dart until the next match starts. Spectators cannot undo. Undo is persisted, bounded to the last 200 darts, and restores turns, legs, statistics, and completion atomically.
 - The owner can abandon a running match without a winner or completed statistics. A room is reusable after completion or abandonment. Starting another match locks previous results.
-- One-device play uses the same server implementation, with one account controlling its selected local players.
+- One-device play uses the same server implementation, with one account controlling its selected local players. One signed-in account playing with a guest satisfies the two-player minimum; only that account marks Ready, then the owner starts. Guests need no account or separate readiness.
 - Lobby errors use toasts without shifting the layout; connection status and pending-action recovery remain visible. Repeated identical connection failures do not stack notifications.
-- Saved rules are visible to everyone in the lobby and above the match scoreboard, including straight/double in and out, start score and legs target for X01, or target order and Fast Forward for Around the Clock.
+- Saved rules are visible to everyone in the lobby and inside the match’s Match Status panel, including straight/double in and out, start score and legs target for X01, or target order and Fast Forward for Around the Clock.
 - Each player card shows recommendations from that player's own state: remaining darts for the active player, or a fresh three-dart turn for waiting players. Recommendations disappear after completion or abandonment; the current-turn timeline shows thrown darts.
+- Match errors and pending-dart recovery appear in a floating notification outside the match layout. Recovery appears only after an unresolved request, with the original request retained for retry. Saving, connection, and turn-transition messages share a stable status area so scoring does not shift the Match Status panel or player list.
 
 ## Authority and synchronization
 

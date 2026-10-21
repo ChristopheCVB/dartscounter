@@ -1,11 +1,9 @@
 <template>
-  <UCard>
-    <template #header>
-      <div class="flex items-center justify-between gap-2">
-        <h3 class="m-0 arcade-title text-sm">Current Turn</h3>
-        <UBadge color="neutral" variant="soft">{{ darts.length }}/3</UBadge>
-      </div>
-    </template>
+  <section aria-label="Current turn" class="grid gap-2" aria-live="polite">
+    <div class="flex items-center justify-between gap-2">
+      <h3 class="m-0 arcade-title text-sm">Current Turn</h3>
+      <UBadge color="neutral" variant="soft">{{ darts.length }}/3</UBadge>
+    </div>
 
     <div class="flex flex-wrap gap-2">
       <template v-if="isAtc">
@@ -24,10 +22,9 @@
           {{ dart.multiplier }}x{{ dart.segment }} -> {{ dart.scoredPoints }}
         </UBadge>
       </template>
-      <span v-if="!darts.length" class="text-sm text-muted">No darts yet.</span>
+      <UBadge v-if="!darts.length" color="neutral" variant="soft" size="lg">No darts yet.</UBadge>
     </div>
-
-  </UCard>
+  </section>
 </template>
 
 <script setup lang="ts">
