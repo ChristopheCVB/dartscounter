@@ -41,7 +41,7 @@ jobs:
     needs: setup
     services:
       postgres:
-        image: postgres:18
+        image: ${{ matrix.check == 'test' && 'postgres:18' || '' }}
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
