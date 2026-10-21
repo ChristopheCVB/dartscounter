@@ -1,75 +1,52 @@
-# Nuxt Minimal Starter
+# DartCounter
 
-Look at the [Nuxt documentation](https://nuxt.com/docs/getting-started/introduction) to learn more.
+A local-first darts scoring app built with Nuxt. Bun is the runtime and package manager.
 
 ## Setup
 
-Make sure to install dependencies:
+Install [mise](https://mise.jdx.dev/getting-started.html), then install the Bun version pinned in `mise.toml` and the project dependencies:
 
 ```bash
-# npm
-npm install
-
-# pnpm
-pnpm install
-
-# yarn
-yarn install
-
-# bun
-bun install
+mise trust
+mise install bun
+mise exec -- bun install --frozen-lockfile
 ```
 
-## Development Server
+With mise shell activation enabled, you can run `bun` directly. Otherwise, prefix commands with `mise exec --` as shown below.
 
-Start the development server on `http://localhost:3000`:
+## Development
+
+Start the app at http://localhost:3000:
 
 ```bash
-# npm
-npm run dev
+mise exec -- bun run dev
+```
 
-# pnpm
-pnpm dev
+## Checks
 
-# yarn
-yarn dev
-
-# bun
-bun run dev
+```bash
+mise exec -- bun run test
+mise exec -- bun run typecheck
+mise exec -- bun run build
 ```
 
 ## Production
 
-Build the application for production:
+Build and start the Bun server:
 
 ```bash
-# npm
-npm run build
-
-# pnpm
-pnpm build
-
-# yarn
-yarn build
-
-# bun
-bun run build
+mise exec -- bun run build
+mise exec -- bun run start
 ```
 
-Locally preview production build:
+Use `mise exec -- bun run preview` to preview the production build locally.
+
+## Dependency updates
 
 ```bash
-# npm
-npm run preview
-
-# pnpm
-pnpm preview
-
-# yarn
-yarn preview
-
-# bun
-bun run preview
+mise exec -- bun update --latest
 ```
 
-Check out the [deployment documentation](https://nuxt.com/docs/getting-started/deployment) for more information.
+Commit `package.json` and `bun.lock` together. When upgrading Bun, keep the exact version in `mise.toml` and `packageManager` in sync, and update `engines.bun` to the minimum verified version.
+
+TypeScript stays on version 6 because `vue-tsc` currently requires its JavaScript compiler API, which TypeScript 7 no longer provides. Vitest uses its threads pool because the default forks pool hangs under Bun.

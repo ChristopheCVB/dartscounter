@@ -125,7 +125,8 @@
 </template>
 
 <script setup lang="ts">
-import { z } from 'zod'
+// shortcut: use the module namespace until Bun fixes oven-sh/bun#21614.
+import * as z from 'zod'
 import type { GameMode, GameSettings } from '~~/shared/types/darts'
 import type { RecentPlayer } from '~/stores/players'
 import { fallbackPlayerColor, normalizePlayerColor } from '~/constants/playerColors'
