@@ -1,5 +1,6 @@
 {
   "name": "dartscounter",
+  "version": "0.0.0",
   "type": "module",
   "private": false,
   "license": "MIT",
@@ -14,8 +15,13 @@
     "preview": "bun --bun nuxt preview",
     "test": "bun --bun vitest run --pool=threads",
     "test:watch": "bun --bun vitest --pool=threads",
+    "test:unit": "bun --bun vitest run --project unit",
+    "test:nuxt": "bun --bun vitest run --project nuxt",
+    "test:e2e": "bun --bun vitest run --project e2e",
+    "lint": "bun --bun eslint .",
+    "lint:fix": "bun --bun eslint . --fix",
     "postinstall": "bun --bun nuxt prepare",
-    "typecheck": "bun --bun nuxt typecheck",
+    "typecheck": "BUN_OPTIONS=--preload=./scripts/vue-tsc-bun.cjs bun --bun nuxt typecheck",
     "start": "bun .output/server/index.mjs"
   },
   "dependencies": {
@@ -30,9 +36,13 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@nuxt/eslint": "^1.17.0",
     "@nuxt/test-utils": "^4.3.4",
     "@types/canvas-confetti": "^1.9.0",
     "@vue/test-utils": "^2.5.1",
+    "eslint": "^10.13.0",
+    "happy-dom": "^21.0.4",
+    "playwright-core": "^1.64.1",
     "typescript": "^6.0.3",
     "vitest": "^5.0.5",
     "vue-tsc": "^3.3.13"

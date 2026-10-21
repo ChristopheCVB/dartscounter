@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest'
-import { useMatchState } from '../../../app/composables/useMatchState'
-import type { PlayerIdentity, X01Settings } from '../../../shared/types/darts'
+import { assert, describe, expect, it } from 'vitest'
+import { useMatchState } from '../../../../app/composables/useMatchState'
+import type { PlayerIdentity, X01Settings } from '../../../../shared/types/darts'
 
 const settings: X01Settings = {
   mode: 'x01',
@@ -33,6 +33,7 @@ describe('useMatchState integration flow', () => {
     const { createMatch, recordDart } = useMatchState()
     const match = createMatch(settings, players)
     const player = match.players[0]
+    assert(player)
 
     player.score = 100
     match.currentTurnStartScore = 100
@@ -48,6 +49,7 @@ describe('useMatchState integration flow', () => {
     const { createMatch, recordDart } = useMatchState()
     const match = createMatch(settings, players)
     const player = match.players[0]
+    assert(player)
 
     player.score = 40
     match.currentTurnStartScore = 40
@@ -63,6 +65,7 @@ describe('useMatchState integration flow', () => {
     const { createMatch, recordDart } = useMatchState()
     const match = createMatch(settings, players)
     const player = match.players[0]
+    assert(player)
 
     player.score = 40
     match.currentTurnStartScore = 40

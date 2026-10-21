@@ -1,0 +1,101 @@
+name: Pull Request
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  setup:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+      - name: Restore dependencies
+        uses: actions/cache/restore@v6.1.0
+        id: dependencies
+        with:
+          path: node_modules
+          key: bun-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock', 'package.json') }}
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Save dependencies
+        if: steps.dependencies.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6.1.0
+        with:
+          path: node_modules
+          key: bun-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock', 'package.json') }}
+
+  checks:
+    name: ${{ matrix.check }}
+    runs-on: self-hosted
+    needs: setup
+    strategy:
+      fail-fast: false
+      matrix:
+        check: [lint, typecheck, test]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+      - name: Restore dependencies
+        uses: actions/cache/restore@v6.1.0
+        with:
+          path: node_modules
+          key: bun-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock', 'package.json') }}
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Get Playwright version
+        if: matrix.check == 'test'
+        id: playwright
+        run: bun -e "console.log('version=' + require('playwright-core/package.json').version)" >> "$GITHUB_OUTPUT"
+      - name: Restore Chromium
+        if: matrix.check == 'test'
+        uses: actions/cache/restore@v6.1.0
+        id: chromium
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright.outputs.version }}
+      # System libraries are outside the browser cache and must be checked on every run.
+      - name: Install Chromium with system dependencies
+        if: matrix.check == 'test'
+        run: bunx --bun playwright-core install --with-deps chromium
+      - name: Save Chromium
+        if: matrix.check == 'test' && steps.chromium.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright.outputs.version }}
+      - name: Run ${{ matrix.check }}
+        run: bun run ${{ matrix.check }}
+
+  build-docker-image:
+    runs-on: self-hosted
+    needs: checks
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4.4.1
+      - name: Build Docker image
+        uses: docker/build-push-action@v7.4.0
+        with:
+          push: false
+          load: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          file: Dockerfile

@@ -88,7 +88,7 @@ const hintText = computed(() => {
     return 'Turn complete. Undo to adjust or wait for auto-advance.'
   }
 
-  if (isAtc.value) {
+  if (props.settings.mode === 'atc') {
     const target = props.atcTarget ?? 1
     if (target > 21) {
       return 'All targets cleared!'
@@ -97,8 +97,7 @@ const hintText = computed(() => {
     if (target > 20) {
       return `Hit the Bull to win!`
     }
-    const isFast = props.settings.mode === 'atc' && props.settings.fastForward
-    if (isFast) {
+    if (props.settings.fastForward) {
       return `Hit segment ${targetLabel}. Doubles skip 2, trebles skip 3.`
     }
     return `Hit segment ${targetLabel}.`

@@ -20,7 +20,7 @@ Concise map of the codebase for AI agents and developers. Authoritative behavior
 - **shared/** — Non-Nuxt shared code:
   - **types/darts.ts** — Single source of truth for X01 types: `Multiplier`, `Segment`, `MatchStatus`, `DartInput`, `ThrowEvent`, `DartApplyResult`, `X01Settings`, `PlayerIdentity`, `Player`, `PlayerStats`, `MatchPlayer`, `Match`, `PlayerSummary`, `MatchSummary`.
 - **specs/** — Product and implementation specs (MVP, architecture, data model, feature implementation notes). See [specs/README.md](specs/README.md) for reading order.
-- **tests/** — Vitest: `unit/scoring/useScoringEngine.test.ts`, `unit/match/useMatchState.test.ts`.
+- **tests/** — Vitest projects `unit/`, `nuxt/`, and `e2e/`; paths within each project mirror the source tree (e.g. `unit/app/composables/useScoringEngine.test.ts`, `nuxt/app/components/setup/MatchConfigForm.test.ts`, `e2e/app/pages/match/[id].test.ts`). All test files are included in `bun run typecheck`.
 - **Config:** [nuxt.config.ts](nuxt.config.ts) — modules `@nuxt/ui`, `@pinia/nuxt`, `@vueuse/nuxt`; Pinia `storesDirs: ['app/stores/**']`; CSS from `~/assets/css/main.css`.
 
 ## Responsibility split
@@ -46,6 +46,9 @@ Concise map of the codebase for AI agents and developers. Authoritative behavior
 - **Dev:** `bun run dev` — http://localhost:3000
 - **Build:** `bun run build`; **Preview:** `bun run preview`
 - **Tests:** `bun run test` (Vitest run); `bun run test:watch` for watch mode
+- **Test projects:** `bun run test:unit`, `bun run test:nuxt`, `bun run test:e2e`; Chromium setup: `bunx --bun playwright-core install --with-deps chromium`
+- **Lint / types:** `bun run lint`; `bun run lint:fix`; `bun run typecheck` (includes the Bun/vue-tsc preload)
+- **CI / deployment:** `.github/workflows/` uses self-hosted runners; release-please calls Coolify after releases. Setup requirements are in `README.md`.
 
 ## Agent guidance
 

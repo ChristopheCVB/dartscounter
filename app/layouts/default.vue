@@ -1,50 +1,52 @@
 <template>
-  <UHeader
-    title="DartCounter"
-    to="/"
-    class="header-shell"
-    :ui="{
-      root: 'backdrop-blur-xl border-b border-default/60 bg-[color-mix(in_srgb,var(--ui-bg)_72%,transparent)]',
-      title: 'arcade-title text-sm tracking-[0.2em]'
-    }"
-  >
-    <template #right>
-      <UButton
-        v-for="item in navItems"
-        :key="item.to"
-        :to="item.to"
-        :icon="item.icon"
-        color="neutral"
-        :variant="route.path === item.to ? 'solid' : 'ghost'"
-        size="sm"
-        class="hidden md:inline-flex"
-      >
-        {{ item.label }}
-      </UButton>
-    </template>
-
-    <template #body>
-      <div class="-mx-2 grid gap-2">
+  <div>
+    <UHeader
+      title="DartCounter"
+      to="/"
+      class="header-shell"
+      :ui="{
+        root: 'backdrop-blur-xl border-b border-default/60 bg-[color-mix(in_srgb,var(--ui-bg)_72%,transparent)]',
+        title: 'arcade-title text-sm tracking-[0.2em]'
+      }"
+    >
+      <template #right>
         <UButton
           v-for="item in navItems"
           :key="item.to"
           :to="item.to"
           :icon="item.icon"
           color="neutral"
-          :variant="route.path === item.to ? 'solid' : 'soft'"
-          block
+          :variant="route.path === item.to ? 'solid' : 'ghost'"
+          size="sm"
+          class="hidden md:inline-flex"
         >
           {{ item.label }}
         </UButton>
-      </div>
-    </template>
-  </UHeader>
+      </template>
 
-  <UMain class="pb-8 pt-5 sm:pt-8">
-    <UContainer>
-      <slot />
-    </UContainer>
-  </UMain>
+      <template #body>
+        <div class="-mx-2 grid gap-2">
+          <UButton
+            v-for="item in navItems"
+            :key="item.to"
+            :to="item.to"
+            :icon="item.icon"
+            color="neutral"
+            :variant="route.path === item.to ? 'solid' : 'soft'"
+            block
+          >
+            {{ item.label }}
+          </UButton>
+        </div>
+      </template>
+    </UHeader>
+
+    <UMain class="pb-8 pt-5 sm:pt-8">
+      <UContainer>
+        <slot />
+      </UContainer>
+    </UMain>
+  </div>
 </template>
 
 <script setup lang="ts">

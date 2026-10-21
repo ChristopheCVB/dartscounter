@@ -1,0 +1,53 @@
+version: 2
+updates:
+  - package-ecosystem: "bun"
+    directory: "/"
+    schedule:
+      interval: "daily"
+      time: "10:00"
+    cooldown:
+      default-days: 6
+    labels: ["dependencies", "bun"]
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    groups:
+      bun-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    # vue-tsc requires the compiler API provided by TypeScript 6.
+    ignore:
+      - dependency-name: "typescript"
+        versions: [">=7"]
+
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "daily"
+      time: "10:00"
+    cooldown:
+      default-days: 6
+    labels: ["dependencies", "docker"]
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    groups:
+      docker-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "daily"
+      time: "10:00"
+    cooldown:
+      default-days: 6
+    labels: ["dependencies", "github-actions"]
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    groups:
+      github-actions-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
