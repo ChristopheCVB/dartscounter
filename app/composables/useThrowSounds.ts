@@ -1,75 +1,56 @@
-import type { DartInput } from '~~/shared/types/darts'
+import type { ThrowEvent } from '~~/shared/types/darts'
 import { useSound } from '@vueuse/sound'
 import { storeToRefs } from 'pinia'
 import { useSettingsStore } from '~/stores/settings'
 
-const SOUND_FILES = {
-  single: '/sounds/single.mp3',
-  double: '/sounds/double.mp3',
-  triple: '/sounds/triple.mp3',
-  bullSingle: '/sounds/bull-single.mp3',
-  bullDouble: '/sounds/bull-double.mp3',
-  miss: '/sounds/miss.mp3',
-  confetti: '/sounds/confetti.mp3'
-} as const
-
 export function useThrowSounds() {
-  const settingsStore = useSettingsStore()
-  const { soundEnabled } = storeToRefs(settingsStore)
-  const soundOptions = { interrupt: true }
-
-  const { play: basePlaySingle } = useSound(SOUND_FILES.single, { ...soundOptions, volume: 1 })
-  const { play: basePlayDouble } = useSound(SOUND_FILES.double, { ...soundOptions, volume: 1 })
-  const { play: basePlayTriple } = useSound(SOUND_FILES.triple, { ...soundOptions, volume: 1 })
-  const { play: basePlayBullSingle } = useSound(SOUND_FILES.bullSingle, { ...soundOptions, volume: 1 })
-  const { play: basePlayBullDouble } = useSound(SOUND_FILES.bullDouble, { ...soundOptions, volume: 1 })
-  const { play: basePlayMiss } = useSound(SOUND_FILES.miss, { ...soundOptions, volume: 1 })
-  const { play: basePlayCelebration } = useSound(SOUND_FILES.confetti, { ...soundOptions, volume: 1 })
-
-  const playSingle = () => soundEnabled.value && basePlaySingle()
-  const playDouble = () => soundEnabled.value && basePlayDouble()
-  const playTriple = () => soundEnabled.value && basePlayTriple()
-  const playBullSingle = () => soundEnabled.value && basePlayBullSingle()
-  const playBullDouble = () => soundEnabled.value && basePlayBullDouble()
-  const playMiss = () => soundEnabled.value && basePlayMiss()
-  const playCelebration = () => soundEnabled.value && basePlayCelebration()
-
-  const playForThrow = (input: DartInput) => {
-
-    if (input.segment === 0) {
-      playMiss()
-      return
-    }
-
-    if (input.segment === 25) {
-      if (input.multiplier === 2) {
-        playBullDouble()
-        return
-      }
-
-      playBullSingle()
-      return
-    }
-
-    if (input.multiplier === 3) {
-      playTriple()
-      return
-    }
-
-    if (input.multiplier === 2) {
-      playDouble()
-      return
-    }
-
-    playSingle()
+  const { soundEnabled, announcementLanguage, announcementVoice } = storeToRefs(useSettingsStore())
+  const speech = useScoreSpeech(announcementLanguage, announcementVoice)
+  let activeScore: number | null = null
+  const failedScores = new Set<number>()
+  function fallback(score: number) {
+    failedScores.add(score)
+    if (activeScore !== score) return
+    activeScore = null
+    scoreSounds.get(score)?.stop()
+    if (soundEnabled.value) speech.speak(score)
   }
+  const scoreSounds = new Map([100, 140, 180].map(score => [score, useSound(`/sounds/scores/${score}.mp3`, {
+    onloaderror: () => fallback(score),
+    onplayerror: () => fallback(score),
+    onend: () => { if (activeScore === score) activeScore = null }
+  })]))
+  const miss = useSound('/sounds/miss.mp3')
+  const celebration = useSound('/sounds/confetti.mp3')
 
-  const playConfetti = () => {
-    playCelebration()
+  function stop() {
+    activeScore = null
+    speech.stop()
+    for (const clip of scoreSounds.values()) clip.stop()
+    miss.stop()
+    celebration.stop()
   }
-
-  return {
-    playForThrow,
-    playConfetti
+  function playTurn(darts: ThrowEvent[]) {
+    const last = darts.at(-1)
+    if (!last || (!last.isBust && !last.isCheckout && last.dartIndex !== 3)) return
+    stop()
+    if (!soundEnabled.value || last.isCheckout) return
+    if (last.isBust) {
+      miss.play()
+      return
+    }
+    const score = darts.reduce((total, dart) => total + dart.scoredPoints, 0)
+    const clip = scoreSounds.get(score)
+    if (clip?.sound.value && !failedScores.has(score)) {
+      activeScore = score
+      clip.play()
+    } else speech.speak(score)
   }
+  function playConfetti() {
+    stop()
+    if (soundEnabled.value) celebration.play()
+  }
+  watch(soundEnabled, enabled => { if (!enabled) stop() }, { flush: 'sync' })
+  onScopeDispose(stop)
+  return { playTurn, playConfetti, stop }
 }

@@ -28,6 +28,30 @@
         </div>
       </div>
 
+      <ClientOnly>
+        <div class="grid gap-3 md:grid-cols-2">
+          <UFormField label="Announcement language">
+            <USelect
+              :model-value="local.announcementLanguage || null"
+              :items="languageItems"
+              :disabled="!voicePreview.isSupported.value"
+              class="w-full"
+              @update:model-value="local.announcementLanguage = $event ?? ''; local.announcementVoice = ''; voicePreview.stop()"
+            />
+          </UFormField>
+          <UFormField label="Announcement voice">
+            <USelect :model-value="local.announcementVoice || null" :items="voiceItems" :disabled="!voicePreview.isSupported.value" class="w-full" @update:model-value="local.announcementVoice = $event ?? ''; voicePreview.stop()" />
+          </UFormField>
+          <div class="md:col-span-2">
+            <UButton color="neutral" variant="soft" :disabled="!local.soundEnabled || !settingsStore.soundEnabled || !voicePreview.isSupported.value" @click="voicePreview.speak(60)">Test voice</UButton>
+            <p class="mt-2 text-xs text-muted">Language and voice are saved on this browser. Special calls for 100, 140, and 180 use recordings in their original voice.</p>
+            <p v-if="!voicePreview.isSupported.value" class="text-sm text-muted" role="status">Speech announcements are unavailable in this browser. Recorded sounds still work.</p>
+            <p v-else-if="voicePreview.error.value" class="text-sm text-muted" role="status">Speech could not play. Check your device’s voices and audio permissions, then try Test voice.</p>
+            <p v-else-if="voicePreview.unavailableVoice.value" class="text-sm text-muted" role="status">The saved voice is unavailable on this device. The language’s default voice will be used.</p>
+          </div>
+        </div>
+      </ClientOnly>
+
       <UButton class="w-full sm:w-auto" @click="save">Save defaults</UButton>
     </UCard>
 
@@ -258,7 +282,28 @@ const local = reactive({
   doubleIn: settingsStore.settings.doubleIn,
   doubleOut: settingsStore.settings.doubleOut,
   legsTarget: settingsStore.settings.legsTarget,
-  soundEnabled: settingsStore.soundEnabled
+  soundEnabled: settingsStore.soundEnabled,
+  announcementLanguage: settingsStore.announcementLanguage,
+  announcementVoice: settingsStore.announcementVoice
+})
+
+const voicePreview = useScoreSpeech(() => local.announcementLanguage, () => local.announcementVoice)
+const languageItems = computed(() => [
+  { label: 'Device language', value: null },
+  ...[...new Set([...voicePreview.voices.value.map(voice => voice.lang), local.announcementLanguage].filter(Boolean))]
+    .sort().map(lang => ({ label: lang, value: lang }))
+])
+const voiceItems = computed(() => [
+  { label: 'Default voice', value: null },
+  ...voicePreview.matchingVoices.value.map(voice => ({ label: voice.name, value: voice.voiceURI })),
+  ...(voicePreview.unavailableVoice.value ? [{ label: 'Saved voice (unavailable)', value: local.announcementVoice }] : [])
+])
+watch(() => [settingsStore.announcementLanguage, settingsStore.announcementVoice], ([language, voice]) => {
+  local.announcementLanguage = language ?? ''
+  local.announcementVoice = voice ?? ''
+})
+watch(() => [local.soundEnabled, settingsStore.soundEnabled], ([localEnabled, savedEnabled]) => {
+  if (!localEnabled || !savedEnabled) voicePreview.stop()
 })
 
 async function save() {
@@ -266,9 +311,11 @@ async function save() {
     settings: { mode: 'x01', startScore: local.startScore, doubleIn: local.doubleIn, doubleOut: local.doubleOut, legsTarget: local.legsTarget },
     atcSettings: settingsStore.atcSettings, soundEnabled: local.soundEnabled
   })) return
+  settingsStore.announcementLanguage = local.announcementLanguage
+  settingsStore.announcementVoice = local.announcementVoice
   toast.add({
     title: 'Settings saved',
-    description: 'Default match settings and sound preference updated.',
+    description: 'Match defaults, sound preference, and this browser’s announcement voice updated.',
     color: 'success'
   })
 }

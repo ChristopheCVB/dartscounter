@@ -165,7 +165,6 @@ import MatchScoreboard from '~/components/match/Scoreboard.vue'
 import MatchStats from '~/components/stats/MatchStats.vue'
 import MatchThrowPad from '~/components/match/ThrowPad.vue'
 import MatchTurnTimeline from '~/components/match/TurnTimeline.vue'
-import { useThrowSounds } from '~/composables/useThrowSounds'
 import { complementaryColor } from '~~/shared/utils/playerColors'
 import { useMatchStore } from '~/stores/match'
 
@@ -173,7 +172,6 @@ const route = useRoute()
 const router = useRouter()
 const matchStore = useMatchStore()
 const account = useAccountStore()
-const { playConfetti } = useThrowSounds()
 
 const inputMode = ref<'target' | 'quick'>('target')
 const showShortcuts = ref(false)
@@ -264,7 +262,6 @@ watch(
     }
 
     celebratedMatchId.value = id
-    playConfetti()
 
     const { default: confetti } = await import('canvas-confetti')
     const complement = complementaryColor(winnerColor.value)

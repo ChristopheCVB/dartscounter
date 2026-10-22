@@ -86,6 +86,75 @@ describe('local matches', { timeout: 60_000 }, async () => {
     await expect.poll(() => page.locator('section[aria-busy="true"]').count()).toBe(0)
   }
 
+  it('announces completed turns once, shows averages, and saves this browser’s voice', async () => {
+    page = (await authenticatedPage('Score announcements')).page
+    await page.addInitScript(() => {
+      const calls: Array<{ text: string, lang: string, voice: string | null }> = []
+      Object.assign(window, { scoreSpeechCalls: calls })
+      Object.defineProperty(window, 'SpeechSynthesisUtterance', { configurable: true, value: class extends EventTarget {
+        lang = ''
+        voice: { voiceURI: string } | null = null
+        constructor(public text: string) { super() }
+      } })
+      Object.defineProperty(window, 'speechSynthesis', { configurable: true, value: Object.assign(new EventTarget(), {
+        getVoices: () => [
+          { voiceURI: 'en-test', lang: 'en-US', name: 'English test', default: true, localService: true },
+          { voiceURI: 'fr-test', lang: 'fr-FR', name: 'French test', default: false, localService: true }
+        ],
+        cancel() {}, resume() {}, pause() {},
+        speak(utterance: SpeechSynthesisUtterance) { calls.push({ text: utterance.text, lang: utterance.lang, voice: utterance.voice?.voiceURI ?? null }) }
+      }) })
+    })
+    const calls = () => page.evaluate(() => Reflect.get(window, 'scoreSpeechCalls') as Array<{ text: string, lang: string, voice: string | null }>)
+    await page.goto(url('/match/new'), { waitUntil: 'hydration' })
+    await page.getByPlaceholder('Player 1', { exact: true }).fill('AlexandertheGreatPlayer')
+    await page.getByPlaceholder('Player 2', { exact: true }).fill('Bob')
+    await page.getByRole('button', { name: 'Start Match', exact: true }).click()
+    await page.waitForURL(/\/match\/(?!new)[^/]+$/)
+    await page.getByRole('heading', { name: 'Throw Pad', exact: true }).waitFor()
+    for (let dart = 0; dart < 2; dart++) await throwDart(20)
+    expect(await calls()).toEqual([])
+    await throwDart(20)
+    await expect.poll(async () => (await calls()).map(call => call.text)).toEqual(['60'])
+    expect(await page.locator('[aria-label="Three-dart average: 60.00"]').count()).toBe(1)
+    await page.getByRole('button', { name: 'Undo', exact: true }).click()
+    await expect.poll(() => page.getByText('Turn 1 · Darts 2/3', { exact: true }).count()).toBe(1)
+    await throwDart(1)
+    await expect.poll(async () => (await calls()).map(call => call.text)).toEqual(['60', '41'])
+    for (const width of [390, 1280]) {
+      await page.setViewportSize({ width, height: 900 })
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+      const average = page.locator('[aria-label="Three-dart average: 41.00"]')
+      const averageBox = (await average.boundingBox())!
+      const pointsBox = (await average.locator('..').locator('p').boundingBox())!
+      expect(averageBox.x + averageBox.width).toBeLessThanOrEqual(pointsBox.x)
+      expect(averageBox.height).toBeLessThan(pointsBox.height)
+    }
+    await page.goto(page.url(), { waitUntil: 'hydration' })
+    await page.getByRole('button', { name: 'Miss', exact: true }).waitFor()
+    await expect.poll(() => page.getByRole('button', { name: 'Miss', exact: true }).isEnabled()).toBe(true)
+    expect(await calls()).toEqual([])
+
+    await page.goto(url('/settings'), { waitUntil: 'hydration' })
+    await page.getByRole('combobox', { name: 'Announcement language', exact: true }).click()
+    await page.getByRole('option', { name: 'fr-FR', exact: true }).click()
+    await page.getByRole('combobox', { name: 'Announcement voice', exact: true }).click()
+    await page.getByRole('option', { name: 'French test', exact: true }).click()
+    await page.getByRole('button', { name: 'Test voice', exact: true }).click()
+    await expect.poll(async () => (await calls()).at(-1)).toEqual({ text: '60', lang: 'fr-FR', voice: 'fr-test' })
+    await page.getByRole('button', { name: 'Save defaults', exact: true }).click()
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('dartcounter:v1:announcement-voice'))).toBe('fr-test')
+    await page.goto(page.url(), { waitUntil: 'hydration' })
+    await expect.poll(() => page.getByRole('combobox', { name: 'Announcement voice', exact: true }).textContent()).toBe('French test')
+    expect(await calls()).toEqual([])
+    await page.getByRole('combobox', { name: 'Announcement language', exact: true }).click()
+    await page.getByRole('option', { name: 'Device language', exact: true }).click()
+    await page.getByRole('combobox', { name: 'Announcement voice', exact: true }).click()
+    await page.getByRole('option', { name: 'Default voice', exact: true }).click()
+    await page.getByRole('button', { name: 'Test voice', exact: true }).click()
+    await expect.poll(async () => (await calls()).at(-1)).toEqual({ text: '60', lang: 'en-US', voice: 'en-test' })
+  })
+
   it('defaults to the target, scores board rings and Miss, and keeps turn feedback beside Undo', async () => {
     await startMatch()
     const targetTab = page.getByRole('tab', { name: 'Interactive Target', exact: true })

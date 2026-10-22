@@ -76,7 +76,7 @@ tests/
   - `aggregatePlayerStats()` groups `MatchSummary` entries by player and computes lifetime `AggregatedPlayerStats[]`.
 - `useThrowSounds.ts`
   - Sound feedback via `@vueuse/sound`.
-  - Returns `{ playForThrow, playConfetti }`; respects `soundEnabled` from settings store.
+  - Returns `{ playTurn, playConfetti, stop }`; respects `soundEnabled` from settings store. The match store owns gameplay audio, and `useScoreSpeech` supplies native score speech and browser voice discovery.
 - `stores/match.ts`
   - Active match state and actions.
 - `stores/settings.ts`

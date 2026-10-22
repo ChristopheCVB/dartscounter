@@ -7,6 +7,8 @@ export const useSettingsStore = defineStore('settings', () => {
   const settings = ref({ ...defaultPreferences.settings })
   const atcSettings = ref({ ...defaultPreferences.atcSettings })
   const soundEnabled = ref(true)
+  const announcementLanguage = useLocalStorage('dartcounter:v1:announcement-language', '', { initOnMounted: true })
+  const announcementVoice = useLocalStorage('dartcounter:v1:announcement-voice', '', { initOnMounted: true })
   function hydrate(data: Preferences) {
     settings.value = data.settings
     atcSettings.value = data.atcSettings
@@ -31,5 +33,5 @@ export const useSettingsStore = defineStore('settings', () => {
   function updateSoundEnabled(value: boolean) {
     return save({ settings: settings.value, atcSettings: atcSettings.value, soundEnabled: value })
   }
-  return { settings, atcSettings, soundEnabled, hydrate, reset, save, update, updateAtcSettings, updateSoundEnabled }
+  return { settings, atcSettings, soundEnabled, announcementLanguage, announcementVoice, hydrate, reset, save, update, updateAtcSettings, updateSoundEnabled }
 })

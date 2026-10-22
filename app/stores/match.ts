@@ -20,7 +20,7 @@ export const useMatchStore = defineStore('match', () => {
   let generation = 0
   let refreshSequence = 0
   const uncertain = ref<{ roomId: string, requestId: string, expectedRevision: number, action: RoomAction } | null>(null)
-  const { playForThrow } = useThrowSounds()
+  const sounds = useThrowSounds()
   const canScore = computed(() => connected.value && !pending.value && !uncertain.value && !transitionLocked.value && activeMatch.value?.status === 'in_progress' && !!currentPlayer.value && room.value?.controllers[currentPlayer.value.id] === useAccountStore().userId)
   const canUndo = computed(() => connected.value && !pending.value && !uncertain.value && !!room.value?.canUndo)
 
@@ -29,13 +29,26 @@ export const useMatchStore = defineStore('match', () => {
     const previous = room.value
     room.value = next
     if (previous?.match?.id !== next.match?.id) {
+      sounds.stop()
       numericBuffer.value = ''
       selectedMultiplier.value = 1
       transitionLocked.value = false
     }
+    if (previous?.match && next.match && previous.match.id === next.match.id) {
+      const before = previous.match.throws
+      const after = next.match.throws
+      const firstNewDart = after.findIndex((dart, index) => dart.id !== before[index]?.id)
+      if (before.some((dart, index) => dart.id !== after[index]?.id) || next.match.status === 'abandoned') sounds.stop()
+      if (live && firstNewDart !== -1 && next.match.status !== 'abandoned') {
+        if (next.match.status === 'finished') sounds.playConfetti()
+        else if (next.match.settings.mode === 'x01') {
+          const lastNewResult = after.findLastIndex((dart, index) => index >= firstNewDart && (dart.isBust || dart.isCheckout || dart.dartIndex === 3))
+          const last = after[lastNewResult]
+          if (last) sounds.playTurn(after.slice(lastNewResult - last.dartIndex + 1, lastNewResult + 1))
+        }
+      }
+    }
     if (live && previous?.match?.id === next.match?.id) {
-      const before = new Set(previous?.match?.throws.map(dart => dart.id))
-      for (const dart of next.match?.throws ?? []) if (!before.has(dart.id)) void playForThrow(dart)
       if (previous?.match?.currentPlayerIndex !== next.match?.currentPlayerIndex) {
         transitionLocked.value = true
         setTimeout(() => { transitionLocked.value = false }, 420)
@@ -50,6 +63,7 @@ export const useMatchStore = defineStore('match', () => {
     if (mine === generation) acceptRoom(next, live)
   }
   function disconnect() {
+    sounds.stop()
     generation++
     source?.close()
     source = undefined
@@ -88,6 +102,7 @@ export const useMatchStore = defineStore('match', () => {
     source.onerror = () => {
       if (mine !== generation) return
       connected.value = false
+      sounds.stop()
       error.value = 'Connection lost. Scoring is paused while reconnecting.'
     }
   }

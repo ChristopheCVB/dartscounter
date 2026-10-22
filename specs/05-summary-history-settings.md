@@ -66,6 +66,8 @@ Implemented in `app/stores/settings.ts` and `app/pages/settings.vue`:
 - default start score
 - default double-in/out
 - default legs target
+- account-saved sound switch
+- browser-local announcement language and voice, with a preview; see specification 08 for turn audio behavior
 
 Defaults are used to prefill `app/pages/match/new.vue` form values.
 

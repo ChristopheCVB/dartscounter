@@ -8,7 +8,10 @@
         </p>
       </div>
 
-      <p class="m-0 shrink-0 text-2xl font-extrabold leading-none tabular-nums">{{ isAtc ? atcTargetLabel : player.score }}</p>
+      <div class="flex shrink-0 items-baseline gap-2 tabular-nums">
+        <span v-if="!isAtc" class="text-xs text-muted" :aria-label="`Three-dart average: ${average}`">Avg {{ average }}</span>
+        <p class="m-0 text-2xl font-extrabold leading-none">{{ isAtc ? atcTargetLabel : player.score }}</p>
+      </div>
     </div>
     <UAlert
       v-if="showRecommendation"
@@ -37,6 +40,7 @@ const props = defineProps<{
 }>()
 
 const isAtc = computed(() => props.settings.mode === 'atc')
+const average = computed(() => (props.player.stats.dartsThrown ? props.player.stats.scoredPoints / props.player.stats.dartsThrown * 3 : 0).toFixed(2))
 const recommendation = computed(() => getDartRecommendation(props.player, props.settings, props.dartsLeft))
 
 const atcTargetLabel = computed(() => {

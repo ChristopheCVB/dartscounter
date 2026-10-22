@@ -23,6 +23,7 @@ This specification supersedes the localStorage/no-auth requirements in specifica
 - One-device play uses the same server implementation, with one account controlling its selected local players. One signed-in account playing with a guest satisfies the two-player minimum; only that account marks Ready, then the owner starts. Guests need no account or separate readiness.
 - Lobby errors use toasts without shifting the layout; connection status and pending-action recovery remain visible. Repeated identical connection failures do not stack notifications.
 - Saved rules are visible to everyone in the lobby and inside the match’s Match Status panel, including straight/double in and out, start score and legs target for X01, or target order and Fast Forward for Around the Clock.
+- X01 player cards show the current match’s three-dart average (`scoredPoints / dartsThrown × 3`, or zero before any darts) to the left of remaining points, with two decimal places and smaller, muted text. Around the Clock keeps its target display.
 - Each player card shows recommendations from that player's own state: remaining darts for the active player, or a fresh three-dart turn for waiting players. Recommendations disappear after completion or abandonment; the current-turn timeline shows thrown darts.
 - Match errors and pending-dart recovery appear in a floating notification outside the match layout. Recovery appears only after an unresolved request, with the original request retained for retry. Saving, connection, and turn-transition messages share a stable status area so scoring does not shift the Match Status panel or player list.
 
@@ -40,3 +41,10 @@ This specification supersedes the localStorage/no-auth requirements in specifica
 - Migrations run before serving traffic under a PostgreSQL advisory lock and fail startup on error. Docker includes the migration files.
 - Configure the database URL, independent Better Auth secret and public origin, Resend sender/key, and Turnstile keys. Production uses real keys; tests use isolated accounts and a database ending in `_test`.
 - Coolify must support unbuffered SSE and a health check at `/api/health`. PostgreSQL requires a persistent volume and backups.
+
+## Turn audio
+
+- Individual darts are silent in both modes. X01 announces the counted three-dart total, including zero; darts before double-in do not contribute. Every bust immediately plays the existing miss sound without announcing a total. All checkouts suppress totals; only a match win plays the existing celebration sound and visual confetti. Around the Clock has only its match-win celebration.
+- Special recordings announce 100, 140, and 180 in their original voice, regardless of the selected speech language. Other scores use native browser TTS and speak only the number. Recording failures fall back to TTS.
+- All connected viewers hear accepted live results once. Initial loads and reconnect catch-up are silent. The newest completed result interrupts previous audio; undo, disconnect, abandonment, mute, or replacing the match cancels playback.
+- The account-saved sound switch controls all audio. Announcement language and voice are browser-local preferences, preserved through account hydration and logout. Device language and its default voice are used initially; unavailable saved voices fall back to the selected language’s default. Settings provides a voice preview, language/voice selection, and speech availability/error feedback. Unsupported speech never blocks scoring.

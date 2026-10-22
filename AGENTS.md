@@ -32,7 +32,7 @@ Concise map of the codebase for AI agents and developers. Authoritative behavior
 - **server/** — Authenticated APIs, PostgreSQL transactions, room authorization, live events, and startup migrations.
 - **shared/utils/** — Pure scoring engines, match progression, statistics, and API validation.
 - **shared/utils/playerStats.ts** — Exports bare `aggregatePlayerStats()` for computing lifetime `AggregatedPlayerStats[]` from match history. Not a Vue composable.
-- **useThrowSounds.ts** — Sound feedback via `@vueuse/sound`; returns `{ playForThrow, playConfetti }`.
+- **useThrowSounds.ts** — Sound feedback via `@vueuse/sound`; returns `{ playTurn, playConfetti, stop }`; `useScoreSpeech` supplies native score speech and browser voice discovery.
 - **Stores** — `match` (active game), `settings` (defaults), `history` (summaries), `players` (recent player identities).
 - **app.vue** — Loads server-backed account data when the authenticated session changes. Stores cache views; the server owns accepted match actions.
 
