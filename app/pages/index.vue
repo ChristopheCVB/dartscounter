@@ -2,38 +2,37 @@
   <section v-if="session?.user" class="page-stack">
     <header class="page-heading"><h1>Let’s play</h1><p>A quick game on one device or a room with friends.</p></header>
     <UAlert v-if="error || account.error" color="error" :title="error || account.error" />
-    <div v-if="resumeMatchId" class="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-primary/40 bg-primary/5 p-5">
-      <div><h2 class="font-semibold">Your match is waiting</h2><p class="mt-1 text-sm text-muted">Continue your game in room {{ account.activeRoom?.code }}.</p></div>
-      <UButton :to="`/match/${resumeMatchId}`" icon="i-lucide-play">Resume match</UButton>
-    </div>
+    <section v-if="account.currentRoom" class="form-section rounded-xl border border-primary/40 bg-primary/5 p-5">
+      <div class="section-heading"><h2>Current room</h2><p>{{ roomStatus }} · Invite code <span class="font-mono font-semibold tracking-widest">{{ account.currentRoom.code }}</span></p></div>
+      <ul class="grid gap-2 text-sm">
+        <li v-for="member in account.currentRoom.members" :key="member.userId" class="flex flex-wrap justify-between gap-2">
+          <span class="min-w-0 flex-1 break-words">{{ member.name }}{{ member.userId === account.currentRoom.ownerId ? ' · owner' : '' }} · {{ member.roster.map(player => player.name).join(', ') || 'Watching' }}</span>
+          <RoomPresence :member="member" />
+        </li>
+      </ul>
+      <MatchRulesSummary :settings="account.currentRoom.settings" embedded />
+      <p class="text-sm text-muted">Return to the lobby or match within five minutes to stay in the room. Finished results stay in History after everyone leaves.</p>
+      <div class="flex flex-wrap gap-3">
+        <UButton :to="`/room/${account.currentRoom.id}`" :variant="resumeMatchId ? 'soft' : 'solid'">Return to room</UButton>
+        <UButton v-if="resumeMatchId" :to="`/match/${resumeMatchId}`" icon="i-lucide-play">Open match</UButton>
+        <RoomLeaveButton :room="account.currentRoom" />
+      </div>
+    </section>
     <div class="grid gap-8 lg:grid-cols-2 lg:gap-12">
       <section class="form-section">
         <div class="section-heading"><h2>Play on this device</h2><p>Pass the screen between players. Only you need an account.</p></div>
-        <div><UButton to="/match/new" icon="i-lucide-plus" :disabled="pending">New match</UButton></div>
+        <div><UButton to="/match/new" icon="i-lucide-plus" :disabled="pending || !!account.currentRoom">New match</UButton></div>
       </section>
       <section class="form-section border-t border-default pt-8 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-12">
         <div class="section-heading"><h2>Play with friends</h2><p>Share a room and score from your own devices.</p></div>
-        <div><UButton color="neutral" variant="soft" :loading="pending" @click="create">Create room</UButton></div>
+        <div><UButton color="neutral" variant="soft" :loading="pending" :disabled="!!account.currentRoom" @click="create">Create room</UButton></div>
         <form class="flex items-end gap-3" @submit.prevent="join">
           <UFormField label="Room code" class="min-w-0 flex-1"><UInput v-model="code" class="w-full" maxlength="8" minlength="8" placeholder="ABCDEFGH" autocomplete="off" autocapitalize="characters" required /></UFormField>
-          <UButton type="submit" color="neutral" variant="outline" :loading="pending">Join room</UButton>
+          <UButton type="submit" color="neutral" variant="outline" :loading="pending" :disabled="!!account.currentRoom">Join room</UButton>
         </form>
       </section>
     </div>
-    <section class="form-section border-t border-default pt-8">
-      <div class="section-heading"><h2>Your rooms</h2><p>Return to a room to play another match.</p></div>
-      <div v-if="account.rooms.length" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <div v-for="item in account.rooms" :key="item.id" class="grid min-w-0 gap-3 rounded-xl border p-4" :class="item.id === account.activeRoom?.id ? 'border-primary/40' : 'border-default'">
-          <NuxtLink :to="`/room/${item.id}`" class="flex min-h-11 flex-wrap items-center justify-between gap-2 hover:text-primary">
-            <span class="font-mono font-semibold tracking-widest">{{ item.code }}</span>
-            <UBadge :color="item.matchStatus === 'in_progress' ? 'success' : 'neutral'" variant="soft">{{ item.matchStatus === 'in_progress' ? 'Playing' : item.matchStatus === 'finished' ? 'Finished' : item.matchStatus === 'abandoned' ? 'Abandoned' : 'Lobby' }}</UBadge>
-          </NuxtLink>
-          <p v-if="item.id === account.activeRoom?.id" class="text-sm text-muted">Your active match</p>
-          <UButton v-if="item.matchStatus === 'in_progress' && item.matchId" :to="`/match/${item.matchId}`" color="neutral" variant="soft" icon="i-lucide-play">Open match</UButton>
-        </div>
-      </div>
-      <p v-else class="text-sm text-muted">No rooms yet. Create one or join with a friend’s code.</p>
-    </section>
+    <p class="text-sm text-muted">{{ account.currentRoom ? 'Leave your current room before creating or joining another.' : 'Rooms last while you play together. Everyone can join by code, including during a one-device match.' }}</p>
   </section>
   <section v-else class="mx-auto grid max-w-2xl gap-6 py-8 sm:py-16">
     <img src="/logo.svg" alt="" class="size-14" width="56" height="56">
@@ -54,8 +53,10 @@ const matchStore = useMatchStore()
 const code = ref('')
 const error = ref('')
 const pending = ref(false)
-const resumeMatchId = computed(() => account.activeRoom?.match?.id ?? '')
+const resumeMatchId = computed(() => account.currentRoom?.match?.status === 'in_progress' ? account.currentRoom.match.id : '')
+const roomStatus = computed(() => account.currentRoom?.match?.status === 'in_progress' ? 'Playing' : 'Between matches')
 onMounted(() => { if (session.value?.user) void account.load() })
+useIntervalFn(() => { if (session.value?.user && account.currentRoom && !pending.value && !matchStore.pending) void account.load() }, 5_000)
 async function enter(path: '/api/rooms' | '/api/rooms/join', body: object) {
   if (pending.value) return
   pending.value = true

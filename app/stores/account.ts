@@ -9,8 +9,7 @@ import { apiError } from '~/utils/apiError'
 export const useAccountStore = defineStore('account', () => {
   const userId = ref('')
   const self = ref<PlayerIdentity | null>(null)
-  const rooms = ref<AccountData['rooms']>([])
-  const activeRoom = ref<AccountData['activeRoom']>(null)
+  const currentRoom = ref<AccountData['currentRoom']>(null)
   const loaded = ref(false)
   const error = ref('')
   let generation = 0
@@ -25,12 +24,10 @@ export const useAccountStore = defineStore('account', () => {
       if (mine !== generation) return null
       userId.value = session.user.id
       self.value = data.self
-      rooms.value = data.rooms
-      activeRoom.value = data.activeRoom
+      currentRoom.value = data.currentRoom
       useSettingsStore().hydrate(data)
       usePlayersStore().recentPlayers = data.players
       useHistoryStore().entries = data.history
-      if (data.activeRoom && !useMatchStore().room) useMatchStore().acceptRoom(data.activeRoom)
       loaded.value = true
       error.value = ''
       return data
@@ -44,13 +41,12 @@ export const useAccountStore = defineStore('account', () => {
     generation++
     userId.value = ''
     self.value = null
-    rooms.value = []
-    activeRoom.value = null
+    currentRoom.value = null
     loaded.value = false
     useMatchStore().reset()
     usePlayersStore().recentPlayers = []
     useHistoryStore().entries = []
     useSettingsStore().reset()
   }
-  return { userId, self, rooms, activeRoom, loaded, error, load, clear }
+  return { userId, self, currentRoom, loaded, error, load, clear }
 })

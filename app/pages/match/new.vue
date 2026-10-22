@@ -2,20 +2,18 @@
   <section class="page-stack">
     <header class="page-heading"><h1>New match</h1><p>Choose your players and rules, then start scoring.</p></header>
 
-    <div v-if="activeMatchId" class="grid gap-4 rounded-xl border border-default p-5">
-      <div class="section-heading"><h2>You have a match in progress</h2><p>Finish or abandon your match in room {{ account.activeRoom?.code }} before starting another.</p></div>
+    <div v-if="account.currentRoom" class="grid gap-4 rounded-xl border border-default p-5">
+      <div class="section-heading"><h2>You’re already in a room</h2><p>Play another match there, or leave before starting a new room.</p></div>
       <div class="flex flex-wrap gap-3">
-        <UButton :to="`/match/${activeMatchId}`">Resume Current Match</UButton>
-        <UDropdownMenu v-if="account.activeRoom?.ownerId === account.userId" :items="[{ label: 'Abandon match', color: 'error', onSelect: () => { confirmAbandon = true } }]"><UButton icon="i-lucide-ellipsis" aria-label="Match options" color="neutral" variant="ghost" /></UDropdownMenu>
+        <UButton :to="`/room/${account.currentRoom.id}`">Return to room</UButton>
+        <UButton v-if="account.currentRoom.match?.status === 'in_progress'" :to="`/match/${account.currentRoom.match.id}`">Open match</UButton>
+        <RoomLeaveButton :room="account.currentRoom" />
       </div>
     </div>
-    <UModal v-model:open="confirmAbandon" class="app-shell" :dismissible="!matchStore.pending" :close="!matchStore.pending" title="Abandon this match?" description="This match will end without a winner or completed statistics.">
-      <template #footer><UButton color="neutral" variant="soft" :disabled="matchStore.pending" @click="confirmAbandon = false">Cancel</UButton><UButton color="error" :loading="matchStore.pending" @click="discardCurrentMatch">Abandon match</UButton></template>
-    </UModal>
 
     <UAlert v-if="matchStore.error" color="error" :title="matchStore.error" />
     <UButton v-if="matchStore.uncertain" @click="matchStore.retryUncertain">Resolve pending action</UButton>
-    <fieldset :disabled="busy || !!activeMatchId || !account.loaded"><MatchConfigForm @submit="onSubmit" /></fieldset>
+    <fieldset :disabled="busy || !!account.currentRoom || !account.loaded"><MatchConfigForm @submit="onSubmit" /></fieldset>
   </section>
 </template>
 
@@ -34,18 +32,8 @@ const playersStore = usePlayersStore()
 const settingsStore = useSettingsStore()
 const account = useAccountStore()
 const busy = ref(false)
-const confirmAbandon = ref(false)
-onMounted(async () => {
-  await account.load()
-  if (account.activeRoom) await matchStore.connect(account.activeRoom.id)
-})
+onMounted(() => account.load())
 onBeforeUnmount(() => matchStore.disconnect())
-
-const activeMatchId = computed(() => account.activeRoom?.match?.id ?? '')
-
-async function discardCurrentMatch() {
-  if (await matchStore.clearMatch()) confirmAbandon.value = false
-}
 
 async function onSubmit(payload: {
   settings: GameSettings
@@ -53,7 +41,7 @@ async function onSubmit(payload: {
 }) {
   const { players, settings } = payload
 
-  if (busy.value || activeMatchId.value) return
+  if (busy.value || account.currentRoom) return
   busy.value = true
   try {
     const saved = settings.mode === 'x01' ? await settingsStore.update(settings) : await settingsStore.updateAtcSettings(settings)

@@ -2,7 +2,7 @@
 
 This directory tracks the product/implementation specs for DartsCounter as-built.
 
-Last verified against code: 2026-10-22
+Last verified against code: 2026-10-23
 
 Current behavior is defined by [08-server-multiplayer.md](08-server-multiplayer.md), which supersedes local-only persistence and authentication requirements below.
 

@@ -41,9 +41,12 @@ export async function testUser(name: string) {
 }
 
 export async function cleanupDatabase() {
+  const matches = (await testPool.query<{ id: string }>('SELECT id FROM matches WHERE room_id IN (SELECT id FROM rooms WHERE owner_id=ANY($1::text[])) OR id IN (SELECT match_id FROM participants WHERE user_id=ANY($1::text[]))', [users])).rows.map(match => match.id)
+  await testPool.query('DELETE FROM hidden_history WHERE match_id=ANY($1::uuid[])', [matches])
   await testPool.query('DELETE FROM hidden_history WHERE user_id=ANY($1::text[])', [users])
+  await testPool.query('DELETE FROM participants WHERE match_id=ANY($1::uuid[])', [matches])
   await testPool.query('DELETE FROM participants WHERE user_id=ANY($1::text[])', [users])
-  await testPool.query('DELETE FROM matches WHERE room_id IN (SELECT id FROM rooms WHERE owner_id=ANY($1::text[]))', [users])
+  await testPool.query('DELETE FROM matches WHERE id=ANY($1::uuid[])', [matches])
   await testPool.query('DELETE FROM actions WHERE user_id=ANY($1::text[])', [users])
   await testPool.query('DELETE FROM rooms WHERE owner_id=ANY($1::text[])', [users])
   await testPool.query('DELETE FROM "user" WHERE id=ANY($1::text[])', [users])

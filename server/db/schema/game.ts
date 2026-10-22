@@ -1,4 +1,4 @@
-import { boolean, index, integer, jsonb, pgTable, primaryKey, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core'
+import { boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
 import { user } from './auth'
 import type { GameSettings, Match, MatchSummary, PlayerIdentity } from '../../../shared/types/darts'
@@ -28,11 +28,14 @@ export const members = pgTable('members', {
   roomId: uuid('room_id').notNull().references(() => rooms.id, { onDelete: 'cascade' }),
   userId: text('user_id').notNull().references(() => user.id),
   roster: jsonb('roster').$type<PlayerIdentity[]>().default([]).notNull(),
-  ready: boolean('ready').default(false).notNull()
-}, table => [primaryKey({ columns: [table.roomId, table.userId] }), index('members_user_idx').on(table.userId)])
+  ready: boolean('ready').default(false).notNull(),
+  joinedAt: timestamp('joined_at', { withTimezone: true }).defaultNow().notNull(),
+  lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).defaultNow().notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).default(sql`now() + interval '5 minutes'`).notNull()
+}, table => [primaryKey({ columns: [table.roomId, table.userId] }), uniqueIndex('members_user_idx').on(table.userId), index('members_expiry_idx').on(table.expiresAt)])
 export const matches = pgTable('matches', {
   id: uuid('id').primaryKey(),
-  roomId: uuid('room_id').notNull().references(() => rooms.id),
+  roomId: uuid('room_id').references(() => rooms.id, { onDelete: 'set null' }),
   state: jsonb('state').$type<Match>().notNull(),
   controllers: jsonb('controllers').$type<Record<string, string>>().notNull(),
   undo: jsonb('undo').$type<Match[]>().default([]).notNull(),
@@ -49,7 +52,7 @@ export const hiddenHistory = pgTable('hidden_history', {
   userId: text('user_id').notNull().references(() => user.id)
 }, table => [primaryKey({ columns: [table.matchId, table.userId] })])
 export const actions = pgTable('actions', {
-  roomId: uuid('room_id').notNull().references(() => rooms.id),
+  roomId: uuid('room_id').notNull().references(() => rooms.id, { onDelete: 'cascade' }),
   userId: text('user_id').notNull().references(() => user.id),
   requestId: uuid('request_id').notNull(),
   input: text('input').notNull(),

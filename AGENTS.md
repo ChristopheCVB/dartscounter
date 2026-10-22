@@ -5,6 +5,7 @@ Concise map of the codebase for AI agents and developers. Authoritative behavior
 ## Project overview
 
 - **Server behavior:** See [specs/08-server-multiplayer.md](specs/08-server-multiplayer.md), which supersedes local-only persistence and authentication requirements.
+- **Room lifetime:** One temporary room per account. Explicit Leave or five minutes away removes membership; the last departure destroys the room while completed history survives. Room/match page requests renew persisted deadlines; server-side SSE timers do not. Ownership transfers on departure, and a participating account's departure abandons its unfinished match.
 - **What:** DartsCounter — local X01 darts scoring app (301/501, pass-and-play, bust/checkout, undo, stats, persistence).
 - **Stack:** Nuxt 4, Nuxt UI, Tailwind CSS v4, Pinia, VueUse, @vueuse/sound, canvas-confetti, TypeScript, Zod, Vitest. PostgreSQL 18, Drizzle, Better Auth, and server-sent room updates.
 - **Audience:** One device, friends playing locally; responsive mobile/desktop.

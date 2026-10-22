@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { cleanupDatabase, prepareDatabase, testPool, testUser } from '../../helpers/database'
-import { createRoom, ensureSelf, joinRoom, loadRoom, mutateRoom, readRoom, transaction } from '../../../server/utils/rooms'
+import { createRoom, ensureSelf, joinRoom, leaveRoom, loadRoom, mutateRoom, readRoom, transaction } from '../../../server/utils/rooms'
 import { getPool } from '../../../server/db/db'
 import { ensurePlayers, readAccount } from '../../../server/utils/account'
 import type { RoomView } from '../../../shared/types/rooms'
@@ -10,6 +10,9 @@ import { getAtcTargetSegment } from '../../../shared/utils/atcEngine'
 
 beforeAll(prepareDatabase)
 afterAll(async () => { await cleanupDatabase(); await getPool().end() })
+function withoutDeadlines(room: RoomView) {
+  return { ...room, members: room.members.map(member => ({ ...member, expiresAt: 0 })) }
+}
 function act(room: RoomView, userId: string, action: RoomAction, requestId = crypto.randomUUID()) {
   return mutateRoom(room.id, userId, requestId, room.revision, action)
 }
@@ -45,8 +48,8 @@ describe('server-authoritative rooms', () => {
     expect(repaired.revision).toBe(room.revision + 1)
     expect(repaired.members.find(member => member.userId === owner.id)!.roster).toEqual([self])
     expect(repaired.members.every(member => !member.ready)).toBe(true)
-    expect(await readRoom(getPool(), room.id, owner.id)).toEqual(repaired)
-    expect(await loadRoom(room.id, owner.id)).toEqual(repaired)
+    expect(withoutDeadlines(await readRoom(getPool(), room.id, owner.id))).toEqual(withoutDeadlines(repaired))
+    expect(withoutDeadlines(await loadRoom(room.id, owner.id))).toEqual(withoutDeadlines(repaired))
     room = await act(repaired, owner.id, { type: 'roster', playerIds: [self.id, fresh!.id] })
     room = await act(room, owner.id, { type: 'ready', ready: true })
     room = await act(room, other.id, { type: 'ready', ready: true })
@@ -64,7 +67,7 @@ describe('server-authoritative rooms', () => {
     room = await act(room, owner.id, { type: 'ready', ready: true })
     room = await act(room, owner.id, { type: 'start' })
     await testPool.query('UPDATE players SET archived=true WHERE id=$1', [guest!.id])
-    expect(await loadRoom(room.id, owner.id)).toEqual(room)
+    expect(withoutDeadlines(await loadRoom(room.id, owner.id))).toEqual(withoutDeadlines(room))
     for (let dart = 0; dart < 20 && room.match!.status === 'in_progress'; dart++) {
       const target = room.match!.players[room.match!.currentPlayerIndex]!.atcTarget!
       room = await act(room, owner.id, { type: 'dart', dart: { segment: getAtcTargetSegment(target), multiplier: target > 20 ? 2 : 3 } })
@@ -108,22 +111,18 @@ describe('server-authoritative rooms', () => {
     await testPool.query('UPDATE players SET archived=true WHERE id=$1', [oldGuest!.id])
     const [newGuest] = await transaction(db => ensurePlayers(db, owner.id, [{ name: 'Guest', color: '#38bdf8' }]))
     expect(newGuest!.id).not.toBe(oldGuest!.id)
+    const account = await readAccount(owner)
+    expect(account.currentRoom?.id).toBe(original.id)
+    expect(account.currentRoom?.match?.status).toBe('in_progress')
+    await expect(createRoom(owner)).rejects.toMatchObject({ statusCode: 409 })
+
+    await leaveRoom(original.id, owner.id, original.revision)
+    expect((await readAccount(owner)).currentRoom).toBeNull()
     let next = await createRoom(owner)
     next = await act(next, owner.id, { type: 'roster', playerIds: [self.id, newGuest!.id] })
     next = await act(next, owner.id, { type: 'ready', ready: true })
-
-    const account = await readAccount(owner)
-    expect(account.activeRoom?.id).toBe(original.id)
-    expect(account.rooms.find(room => room.id === original.id)).toMatchObject({ matchId: original.match!.id, matchStatus: 'in_progress' })
-    expect(account.rooms.find(room => room.id === next.id)).toMatchObject({ matchId: null, matchStatus: null })
-    await expect(act(next, owner.id, { type: 'start' })).rejects.toMatchObject({ statusCode: 409, statusMessage: 'Room owner is already playing in another room. Finish or abandon that match first.' })
-
-    original = await act(original, owner.id, { type: 'abandon' })
-    expect((await readAccount(owner)).activeRoom).toBeNull()
     next = await act(next, owner.id, { type: 'start' })
-    const updated = await readAccount(owner)
-    expect(updated.activeRoom?.id).toBe(next.id)
-    expect(updated.rooms.find(room => room.id === original.id)?.matchStatus).toBe('abandoned')
+    expect((await readAccount(owner)).currentRoom?.id).toBe(next.id)
     expect(next.match!.players.some(player => player.id === newGuest!.id)).toBe(true)
   })
 
@@ -214,20 +213,11 @@ describe('server-authoritative rooms', () => {
     expect((await testPool.query('SELECT locked FROM matches WHERE id=$1', [oldId])).rows[0].locked).toBe(true)
   })
 
-  it('prevents the same account starting two matches concurrently', async () => {
+  it('prevents concurrent room creation for the same account', async () => {
     const alice = await testUser('Alice')
-    const bob = await testUser('Bob')
-    const charlie = await testUser('Charlie')
-    let a = await createRoom(alice)
-    let b = await createRoom(alice)
-    a = await joinRoom(a.code, bob)
-    b = await joinRoom(b.code, charlie)
-    a = await act(a, alice.id, { type: 'ready', ready: true })
-    a = await act(a, bob.id, { type: 'ready', ready: true })
-    b = await act(b, alice.id, { type: 'ready', ready: true })
-    b = await act(b, charlie.id, { type: 'ready', ready: true })
-    const results = await Promise.allSettled([act(a, alice.id, { type: 'start' }), act(b, alice.id, { type: 'start' })])
-    expect(results.filter(r => r.status === 'fulfilled')).toHaveLength(1)
+    const results = await Promise.allSettled([createRoom(alice), createRoom(alice)])
+    expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1)
+    expect(results.find(result => result.status === 'rejected')).toMatchObject({ reason: { statusCode: 409 } })
   })
 
   it('rotates codes and revokes removed members while retaining historical identities', async () => {

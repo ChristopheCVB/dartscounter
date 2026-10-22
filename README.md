@@ -1,6 +1,6 @@
 # DartsCounter
 
-A server-backed darts scoring app with reusable multiplayer rooms, built with Nuxt. Bun is the runtime and package manager.
+A server-backed darts scoring app with temporary multiplayer rooms, built with Nuxt. Bun is the runtime and package manager.
 
 ## Setup
 
@@ -23,6 +23,8 @@ Copy `.env.example` to `.env`, generate an independent Better Auth secret, and c
 Verification and password-reset messages use local Vue templates in `app/emails/`, following line-learner's `nuxt-email-renderer` setup. Subjects live in `ESubject`, and the shared layout provides the action button and fallback URL. The server renders both HTML and plain text before sending through Resend. Open the Email Renderer panel in Nuxt DevTools to preview either template with fictional props; previews do not send mail.
 
 Start PostgreSQL 18 with `docker compose up -d postgres`. Startup applies committed Drizzle migrations under a database advisory lock; missing database access or a migration error prevents startup. Create schema changes with `mise exec -- bun run db:generate`. `db:migrate` applies migrations explicitly and `db:studio` opens Drizzle Studio.
+
+The temporary-room migration deletes existing rooms and unfinished matches, including games running at deployment. Completed results, player snapshots, statistics, and hidden-history choices are preserved. Deploy between games. After migration, accounts belong to one temporary room at a time; rooms disappear when everyone leaves or exceeds the five-minute reconnect window.
 
 Existing browser localStorage data remains untouched and is not imported. Scoring and saved data now require an account and internet access.
 

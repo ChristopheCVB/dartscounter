@@ -3,17 +3,87 @@ import { createError } from 'h3'
 import type { PoolClient } from 'pg'
 import { getPool } from '../db/db'
 import type { Match, MatchSummary, GameSettings, PlayerIdentity } from '../../shared/types/darts'
-import type { RoomView } from '../../shared/types/rooms'
-import { defaultPreferences } from '../../shared/types/rooms'
+import type { RoomMember, RoomView } from '../../shared/types/rooms'
+import { defaultPreferences, ROOM_CONNECTED_MS, ROOM_GRACE_MS } from '../../shared/types/rooms'
 import { useMatchState } from '../../shared/utils/matchState'
 import type { RoomAction } from '../../shared/utils/validation'
 import { publishRoom } from './live'
 
 type Connection = Pick<PoolClient, 'query'>
 interface RoomRow { id: string, code: string, owner_id: string, revision: number, settings: GameSettings, match_id: string | null }
-interface MatchRow { id: string, room_id: string, state: Match, controllers: Record<string, string>, undo: Match[], summary: MatchSummary | null, locked: boolean }
+interface MatchRow { id: string, room_id: string | null, state: Match, controllers: Record<string, string>, undo: Match[], summary: MatchSummary | null, locked: boolean }
 const engine = useMatchState()
 const fail = (statusCode: number, statusMessage: string): never => { throw createError({ statusCode, statusMessage }) }
+
+// The caller holds the room lock. Expiry and explicit departure share the same consequences.
+async function removeMembers(db: Connection, roomId: string, userIds: string[]) {
+  const removed = await db.query<{ user_id: string }>('DELETE FROM members WHERE room_id=$1 AND user_id=ANY($2::text[]) RETURNING user_id', [roomId, userIds])
+  if (!removed.rowCount) return false
+  const room = (await db.query<RoomRow>('SELECT * FROM rooms WHERE id=$1', [roomId])).rows[0]!
+  const departed = removed.rows.map(member => member.user_id)
+  if (room.match_id) {
+    const participants = await db.query('SELECT user_id FROM participants WHERE match_id=$1 AND user_id=ANY($2::text[])', [room.match_id, departed])
+    if (participants.rowCount) {
+      const match = (await db.query<MatchRow>('SELECT * FROM matches WHERE id=$1', [room.match_id])).rows[0]!
+      if (match.state.status === 'in_progress') {
+        match.state.status = 'abandoned'
+        match.state.finishedAt = Date.now()
+        await db.query('UPDATE matches SET state=$2,summary=NULL WHERE id=$1', [match.id, JSON.stringify(match.state)])
+        await db.query('UPDATE participants SET active=false WHERE match_id=$1', [match.id])
+      }
+      await db.query("UPDATE matches SET locked=true,undo='[]'::jsonb WHERE id=$1", [match.id])
+    }
+  }
+  const remaining = await db.query<{ user_id: string }>(`SELECT user_id FROM members WHERE room_id=$1 ORDER BY (last_seen_at > clock_timestamp() - $2 * interval '1 millisecond') DESC,joined_at,user_id`, [roomId, ROOM_CONNECTED_MS])
+  if (!remaining.rowCount) {
+    await db.query("UPDATE matches SET locked=true,undo='[]'::jsonb WHERE room_id=$1 AND summary IS NOT NULL", [roomId])
+    await db.query('DELETE FROM hidden_history WHERE match_id IN (SELECT id FROM matches WHERE room_id=$1 AND summary IS NULL)', [roomId])
+    await db.query('DELETE FROM participants WHERE match_id IN (SELECT id FROM matches WHERE room_id=$1 AND summary IS NULL)', [roomId])
+    await db.query('DELETE FROM matches WHERE room_id=$1 AND summary IS NULL', [roomId])
+    await db.query('DELETE FROM rooms WHERE id=$1', [roomId])
+  } else {
+    const ownerId = departed.includes(room.owner_id) ? remaining.rows[0]!.user_id : room.owner_id
+    await db.query('UPDATE rooms SET owner_id=$2,revision=revision+1 WHERE id=$1', [roomId, ownerId])
+    await db.query('UPDATE members SET ready=false WHERE room_id=$1', [roomId])
+    await pruneRoomRosters(db, await readRoom(db, roomId, remaining.rows[0]!.user_id))
+  }
+  return true
+}
+
+async function roomTransaction<T>(roomId: string, fn: (db: PoolClient) => Promise<T>): Promise<T> {
+  const result = await transaction(async db => {
+    await db.query('SELECT id FROM rooms WHERE id=$1 FOR UPDATE', [roomId])
+    const expired = await db.query<{ user_id: string }>('SELECT user_id FROM members WHERE room_id=$1 AND expires_at<=clock_timestamp()', [roomId])
+    const changed = await removeMembers(db, roomId, expired.rows.map(member => member.user_id))
+    // A rejected action must not roll back departures that already expired.
+    await db.query('SAVEPOINT room_action')
+    try { return { ok: true as const, value: await fn(db), changed } }
+    catch (error) {
+      await db.query('ROLLBACK TO SAVEPOINT room_action')
+      return { ok: false as const, error, changed }
+    }
+  })
+  if (result.changed) publishRoom(roomId)
+  if (!result.ok) throw result.error
+  return result.value
+}
+
+export async function expireRooms() {
+  const rooms = await getPool().query<{ room_id: string }>('SELECT DISTINCT room_id FROM members WHERE expires_at<=clock_timestamp()')
+  for (const room of rooms.rows) await roomTransaction(room.room_id, async () => {})
+}
+
+export async function leaveRoom(roomId: string, userId: string, expectedRevision: number) {
+  await roomTransaction(roomId, async db => {
+    const membership = await db.query('SELECT user_id FROM members WHERE room_id=$1 AND user_id=$2', [roomId, userId])
+    if (!membership.rowCount) return
+    const room = await readRoom(db, roomId, userId)
+    if (room.revision !== expectedRevision) return fail(409, 'Room changed. Review it before leaving.')
+    await removeMembers(db, roomId, [userId])
+  })
+  publishRoom(roomId)
+  return { ok: true as const }
+}
 
 export async function transaction<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
   const client = await getPool().connect()
@@ -38,7 +108,10 @@ export async function readRoom(db: Connection, roomId: string, userId: string): 
   const { rows } = await db.query<RoomRow>('SELECT r.* FROM rooms r JOIN members m ON m.room_id = r.id WHERE r.id = $1 AND m.user_id = $2', [roomId, userId])
   const room = rows[0]
   if (!room) return fail(404, 'Room not found')
-  const members = await db.query<{ userId: string, name: string, roster: PlayerIdentity[], ready: boolean }>(`SELECT m.user_id AS "userId", u.name, m.roster, m.ready FROM members m JOIN "user" u ON u.id = m.user_id WHERE room_id = $1 ORDER BY m.user_id`, [room.id])
+  const members = await db.query<RoomMember>(`SELECT m.user_id AS "userId", u.name, m.roster, m.ready,
+    m.last_seen_at > clock_timestamp() - $2 * interval '1 millisecond' AS connected,
+    (extract(epoch FROM m.expires_at) * 1000)::double precision AS "expiresAt"
+    FROM members m JOIN "user" u ON u.id = m.user_id WHERE room_id = $1 ORDER BY m.joined_at,m.user_id`, [room.id, ROOM_CONNECTED_MS])
   const match = room.match_id ? (await db.query<MatchRow>('SELECT * FROM matches WHERE id = $1', [room.match_id])).rows[0] : undefined
   const participantIds = match ? (await db.query<{ user_id: string }>('SELECT user_id FROM participants WHERE match_id = $1', [match.id])).rows.map(row => row.user_id) : []
   return {
@@ -67,8 +140,8 @@ export async function pruneRoomRosters(db: Connection, room: RoomView) {
 }
 
 export async function loadRoom(roomId: string, userId: string) {
-  const result = await transaction(async db => {
-    await db.query('SELECT id FROM rooms WHERE id=$1 FOR UPDATE', [roomId])
+  const result = await roomTransaction(roomId, async db => {
+    await db.query("UPDATE members SET last_seen_at=clock_timestamp(),expires_at=clock_timestamp() + $3 * interval '1 millisecond' WHERE room_id=$1 AND user_id=$2", [roomId, userId, ROOM_GRACE_MS])
     const room = await readRoom(db, roomId, userId)
     const changed = await pruneRoomRosters(db, room)
     if (!changed) return { room, changed }
@@ -85,7 +158,10 @@ export function newCode() {
 }
 
 export async function createRoom(user: { id: string, name: string }, settings: GameSettings = defaultPreferences.settings) {
+  await expireRooms()
   return transaction(async db => {
+    await db.query('SELECT id FROM "user" WHERE id=$1 FOR UPDATE', [user.id])
+    if ((await db.query('SELECT room_id FROM members WHERE user_id=$1', [user.id])).rowCount) return fail(409, 'Leave your current room before creating another.')
     const self = await ensureSelf(db, user)
     let id: string | undefined
     for (let attempt = 0; attempt < 10 && !id; attempt++) {
@@ -98,15 +174,22 @@ export async function createRoom(user: { id: string, name: string }, settings: G
 }
 
 export async function joinRoom(code: string, user: { id: string, name: string }) {
-  return transaction(async db => {
-    const room = (await db.query<RoomRow>('SELECT * FROM rooms WHERE code = $1 FOR UPDATE', [code])).rows[0]
+  await expireRooms()
+  const found = (await getPool().query<{ id: string }>('SELECT id FROM rooms WHERE code=$1', [code])).rows[0]
+  if (!found) return fail(404, 'Room code not found')
+  return roomTransaction(found.id, async db => {
+    const room = (await db.query<RoomRow>('SELECT * FROM rooms WHERE id=$1 AND code=$2', [found.id, code])).rows[0]
     if (!room) return fail(404, 'Room code not found')
+    await db.query('SELECT id FROM "user" WHERE id=$1 FOR UPDATE', [user.id])
+    const existing = (await db.query<{ room_id: string }>('SELECT room_id FROM members WHERE user_id=$1', [user.id])).rows[0]
+    if (existing && existing.room_id !== room.id) return fail(409, 'Leave your current room before joining another.')
     const self = await ensureSelf(db, user)
     const result = await db.query('INSERT INTO members (room_id,user_id,roster) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING RETURNING user_id', [room.id, user.id, JSON.stringify([self])])
     if (result.rowCount) {
       await db.query('UPDATE members SET ready = false WHERE room_id = $1', [room.id])
       await db.query('UPDATE rooms SET revision = revision + 1 WHERE id = $1', [room.id])
     }
+    await db.query("UPDATE members SET last_seen_at=clock_timestamp(),expires_at=clock_timestamp() + $3 * interval '1 millisecond' WHERE room_id=$1 AND user_id=$2", [room.id, user.id, ROOM_GRACE_MS])
     return readRoom(db, room.id, user.id)
   })
 }
@@ -121,8 +204,7 @@ function shuffled<T>(values: T[]) {
 }
 
 export async function mutateRoom(roomId: string, userId: string, requestId: string, expectedRevision: number, action: RoomAction) {
-  return transaction(async db => {
-    await db.query('SELECT id FROM rooms WHERE id = $1 FOR UPDATE', [roomId])
+  return roomTransaction(roomId, async db => {
     const view = await readRoom(db, roomId, userId)
     const input = JSON.stringify({ expectedRevision, action })
     const receipt = (await db.query<{ input: string, result: RoomView }>('SELECT input,result FROM actions WHERE room_id=$1 AND user_id=$2 AND request_id=$3', [roomId, userId, requestId])).rows[0]
@@ -156,8 +238,7 @@ export async function mutateRoom(roomId: string, userId: string, requestId: stri
     } else if (action.type === 'kick') {
       ownerOnly(); lobbyOnly()
       if (action.userId === userId) return fail(400, 'The owner cannot be removed')
-      await db.query('DELETE FROM members WHERE room_id=$1 AND user_id=$2', [roomId, action.userId])
-      await db.query('UPDATE members SET ready=false WHERE room_id=$1', [roomId])
+      await removeMembers(db, roomId, [action.userId])
     } else if (action.type === 'rotate') {
       ownerOnly(); lobbyOnly()
       for (let attempt = 0; attempt < 10; attempt++) {
@@ -175,6 +256,7 @@ export async function mutateRoom(roomId: string, userId: string, requestId: stri
     } else if (action.type === 'start') {
       ownerOnly(); lobbyOnly()
       const selected = view.members.filter(m => m.roster.length)
+      if (selected.some(member => !member.connected)) return fail(409, 'Wait for selected players to reconnect or leave before starting.')
       const seeds = selected.flatMap(m => m.roster)
       if (seeds.length < 2 || selected.some(m => !m.ready)) return fail(400, 'Select at least two players and have everyone mark Ready')
       if (new Set(seeds.map(p => p.id)).size !== seeds.length || new Set(seeds.map(p => p.name.toLowerCase())).size !== seeds.length) return fail(400, 'Player names must be unique')

@@ -11,17 +11,11 @@
       </div>
       <div class="flex items-center gap-2">
         <UButton v-if="room?.match" :to="`/match/${room.match.id}`">{{ running ? 'Open match' : 'View last match' }}</UButton>
+        <RoomLeaveButton v-if="room" :room="room" />
         <UDropdownMenu v-if="owner" :items="roomOptions"><UButton icon="i-lucide-ellipsis" aria-label="Room options" color="neutral" variant="ghost" :disabled="disabled" /></UDropdownMenu>
       </div>
     </div>
     <div v-if="store.uncertain" class="flex flex-wrap items-center gap-3" role="status"><p class="text-sm text-muted">An action needs confirmation before you continue.</p><UButton :loading="store.pending" @click="store.retryUncertain">Resolve pending action</UButton></div>
-    <UAlert v-if="blockingRoom" color="warning" :title="`You’re playing in room ${blockingRoom.code}`" description="Finish that match or ask its owner to abandon it before playing here. Removing saved guests does not end a match.">
-      <template #actions>
-        <UButton :to="`/match/${blockingRoom.match!.id}`" color="warning">Resume current match</UButton>
-        <UButton :to="`/room/${blockingRoom.id}`" color="neutral" variant="soft">Open active room</UButton>
-        <UButton color="neutral" variant="ghost" :loading="refreshingStatus" @click="refreshStatus">Refresh status</UButton>
-      </template>
-    </UAlert>
     <UAlert v-if="account.error" color="error" :title="account.error" />
     <template v-if="room">
       <section v-if="!running" aria-label="Match readiness" class="flex flex-wrap items-center justify-between gap-4 rounded-xl bg-elevated p-5">
@@ -31,14 +25,15 @@
           <UButton v-if="owner" :disabled="disabled || !!startReason" @click="store.act({ type: 'start' })">Start match</UButton>
         </div>
       </section>
-      <p v-else class="text-sm text-muted">The roster is locked while this match is running. New arrivals can watch and join the next match. An absent player’s turn waits for their return.</p>
+      <p v-else class="text-sm text-muted">The roster is locked while this match is running. New arrivals watch and join the next match. If a participating account leaves or times out, this unfinished match ends without a winner.</p>
+      <p class="text-sm text-muted">Leaving this lobby or the match page starts a five-minute reconnect window. After everyone leaves, the room is deleted and finished results stay in History.</p>
       <div class="grid items-start gap-8 lg:grid-cols-2 lg:gap-12">
         <div class="grid min-w-0 gap-8">
           <section class="form-section">
             <div class="section-heading"><h2>Who’s here</h2><p>Each account controls its own players on its device.</p></div>
             <div class="divide-y divide-default">
               <div v-for="member in room.members" :key="member.userId" class="flex min-w-0 items-center gap-3 py-4 first:pt-0">
-                <div class="min-w-0 flex-1"><p class="break-words font-medium">{{ member.name }}<span v-if="member.userId === room.ownerId" class="text-sm text-muted"> · owner</span></p><p class="mt-1 break-words text-sm text-muted">{{ member.roster.map(player => player.name).join(', ') || 'Watching' }}</p></div>
+                <div class="min-w-0 flex-1"><p class="break-words font-medium">{{ member.name }}<span v-if="member.userId === room.ownerId" class="text-sm text-muted"> · owner</span></p><p class="mt-1 break-words text-sm text-muted">{{ member.roster.map(player => player.name).join(', ') || 'Watching' }}</p><RoomPresence :member="member" class="text-xs" /></div>
                 <UBadge :color="member.ready ? 'success' : 'neutral'" variant="soft">{{ !member.roster.length ? 'Watching' : member.ready ? 'Ready' : 'Not ready' }}</UBadge>
                 <UDropdownMenu v-if="owner && !running && member.userId !== account.userId" :items="[{ label: 'Remove member', color: 'error', onSelect: () => { confirmation = { type: 'kick', userId: member.userId } } }]"><UButton icon="i-lucide-ellipsis" :aria-label="`Options for ${member.name}`" color="neutral" variant="ghost" :disabled="disabled" /></UDropdownMenu>
               </div>
@@ -69,7 +64,7 @@
         </div>
       </div>
     </template>
-    <div v-else class="grid gap-3 py-8 text-muted" role="status"><p>{{ store.error || 'Connecting to your room…' }}</p><div><UButton to="/" color="neutral" variant="soft">Return to Play</UButton></div></div>
+    <div v-else class="grid gap-3 py-8 text-muted" role="status"><p>{{ store.error || 'Connecting to your room…' }}</p><div class="flex gap-3"><UButton to="/" color="neutral" variant="soft">Return to Play</UButton><UButton to="/history" color="neutral" variant="ghost">History</UButton></div></div>
     <UModal v-model:open="confirmOpen" class="app-shell" :title="confirmationTitle" :description="confirmationDescription" :dismissible="!store.pending" :close="!store.pending">
       <template #footer><UButton color="neutral" variant="soft" :disabled="store.pending" @click="confirmation = null">Cancel</UButton><UButton :color="confirmation?.type === 'rotate' ? 'primary' : 'error'" :disabled="disabled" :loading="store.pending" @click="confirmAction">{{ confirmation?.type === 'rotate' ? 'New invite code' : confirmation?.type === 'kick' ? 'Remove member' : 'Abandon match' }}</UButton></template>
     </UModal>
@@ -99,12 +94,6 @@ const running = computed(() => room.value?.match?.status === 'in_progress')
 const addingGuest = ref(false)
 const disabled = computed(() => !store.connected || store.pending || !!store.uncertain || addingGuest.value)
 const me = computed(() => room.value?.members.find(m => m.userId === account.userId))
-const blockingRoom = computed(() => account.activeRoom?.match?.status === 'in_progress' && account.activeRoom.id !== id ? account.activeRoom : null)
-const refreshingStatus = ref(false)
-async function refreshStatus() {
-  refreshingStatus.value = true
-  try { await account.load() } finally { refreshingStatus.value = false }
-}
 const selection = ref<string[]>([])
 const guestName = ref('')
 const mode = ref<GameMode>('x01')
@@ -122,16 +111,16 @@ const startReason = computed(() => {
   if (!store.connected) return 'Waiting for the connection to return.'
   if (store.uncertain) return 'Resolve the pending action before continuing.'
   if (store.pending || addingGuest.value) return 'Saving changes…'
-  if (blockingRoom.value && me.value?.roster.length) return `Finish your match in room ${blockingRoom.value.code} before starting here.`
   if (!validatedRules.value.success) return 'Choose valid match rules before starting.'
   if (rulesDirty.value) return 'Save your rule changes before starting.'
   if (rosterDirty.value) return 'Save your player selection before starting.'
   const participants = room.value?.members.filter(member => member.roster.length) ?? []
+  if (participants.some(member => !member.connected)) return 'Wait for selected players to reconnect or leave before starting.'
   if (participants.flatMap(member => member.roster).length < 2) return 'Select at least two players to start a match.'
   const waiting = participants.filter(member => !member.ready).map(member => member.name)
   return waiting.length ? `Waiting for ${waiting.join(', ')} to mark Ready.` : ''
 })
-const readyReason = computed(() => rosterDirty.value ? 'Save your player selection before marking Ready.' : !me.value?.roster.length ? 'Select players to join in, or leave the selection empty to watch.' : blockingRoom.value ? `Finish your match in room ${blockingRoom.value.code} before marking Ready here.` : owner.value && rulesDirty.value ? 'Save your rule changes before marking Ready.' : '')
+const readyReason = computed(() => rosterDirty.value ? 'Save your player selection before marking Ready.' : !me.value?.roster.length ? 'Select players to join in, or leave the selection empty to watch.' : owner.value && rulesDirty.value ? 'Save your rule changes before marking Ready.' : '')
 const confirmation = ref<RoomAction | null>(null)
 const confirmOpen = computed({ get: () => confirmation.value !== null, set: open => { if (!open) confirmation.value = null } })
 const confirmationTitle = computed(() => confirmation.value?.type === 'kick' ? 'Remove this member?' : confirmation.value?.type === 'abandon' ? 'Abandon this match?' : 'Replace the invite code?')
@@ -169,6 +158,14 @@ async function addGuest() {
     if (await saveRoster()) guestName.value = ''
   } finally { addingGuest.value = false }
 }
-onMounted(async () => { await account.load(); await store.connect(id) })
+onMounted(async () => {
+  await account.load()
+  await store.connect(id)
+  try { await store.refresh(id) }
+  catch {
+    store.reset()
+    store.error = 'This room is no longer available. Finished results are kept in History.'
+  }
+})
 onBeforeUnmount(() => store.disconnect())
 </script>

@@ -48,11 +48,14 @@
       <MatchRulesSummary :settings="match.settings" embedded />
 
       <div class="flex flex-wrap gap-2">
+        <UButton v-if="matchStore.room && match.status !== 'in_progress'" :to="`/room/${matchStore.room.id}`">Play again</UButton>
         <UButton v-if="lastSummary" color="primary" variant="soft" @click="showRecap = true">Show Match Recap</UButton>
         <UButton color="neutral" variant="soft" @click="showShortcuts = true">Keyboard shortcuts (?)</UButton>
         <UButton v-if="matchStore.room" :to="`/room/${matchStore.room.id}`" color="neutral" variant="soft">Room lobby</UButton>
+        <RoomLeaveButton v-if="matchStore.room" :room="matchStore.room" />
         <UButton v-if="match.status === 'in_progress' && matchStore.room?.ownerId === account.userId" color="error" variant="soft" :disabled="!matchStore.connected || matchStore.pending || !!matchStore.uncertain" @click="exitMatch">End Match</UButton>
       </div>
+      <p class="text-xs text-muted">Away from the lobby or match for five minutes? You leave the room, ending any unfinished match you’re playing.</p>
     </UCard>
 
     <div v-if="lastSummary" class="lg:col-span-2 arcade-reveal" :style="{ '--reveal-delay': '150ms' }">
@@ -141,7 +144,7 @@
         <div class="flex w-full flex-wrap justify-end gap-2">
           <UButton color="neutral" variant="soft" @click="showRecap = false">Close</UButton>
           <UButton color="neutral" variant="soft" to="/history">View History</UButton>
-          <UButton to="/match/new">Start New Match</UButton>
+          <UButton v-if="matchStore.room" :to="`/room/${matchStore.room.id}`">Play again</UButton>
         </div>
       </template>
     </UModal>
@@ -150,10 +153,11 @@
   <section v-else class="grid gap-4">
     <UCard class="grid gap-4 arcade-glow">
       <template #header>
-        <h2 class="m-0 arcade-title text-base">No active match</h2>
+        <h2 class="m-0 arcade-title text-base">{{ matchStore.error ? 'Match unavailable' : 'Loading match…' }}</h2>
       </template>
 
-      <UButton to="/match/new" class="w-fit">Start a match</UButton>
+      <p v-if="matchStore.error">{{ matchStore.error }}</p>
+      <div class="flex gap-3"><UButton to="/" class="w-fit">Return to Play</UButton><UButton to="/history" color="neutral" variant="soft">History</UButton></div>
     </UCard>
   </section>
 </template>
@@ -409,7 +413,10 @@ onMounted(async () => {
     const room = await $fetch<import('~~/shared/types/rooms').RoomView>(`/api/matches/${String(route.params.id)}`)
     matchStore.acceptRoom(room)
     await matchStore.connect(room.id)
-  } catch { matchStore.error = 'Unable to load this match. Return to Rooms or sign in again.' }
+  } catch {
+    matchStore.reset()
+    matchStore.error = 'This room or match is no longer available. Finished results are kept in History.'
+  }
 })
 onBeforeUnmount(() => matchStore.disconnect())
 </script>

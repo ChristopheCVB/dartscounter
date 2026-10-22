@@ -19,24 +19,18 @@ export const useMatchStore = defineStore('match', () => {
   let source: EventSource | undefined
   let generation = 0
   let refreshSequence = 0
-  const uncertain = ref<{ roomId: string, requestId: string, expectedRevision: number, action: RoomAction } | null>(null)
+  const uncertain = ref<{ roomId: string, requestId: string, expectedRevision: number, action: RoomAction | { type: 'leave' } } | null>(null)
   const sounds = useThrowSounds()
   const canScore = computed(() => connected.value && !pending.value && !uncertain.value && !transitionLocked.value && activeMatch.value?.status === 'in_progress' && !!currentPlayer.value && room.value?.controllers[currentPlayer.value.id] === useAccountStore().userId)
   const canUndo = computed(() => connected.value && !pending.value && !uncertain.value && !!room.value?.canUndo)
 
   function acceptRoom(next: RoomView, live = false) {
-    if (room.value?.id === next.id && room.value.revision >= next.revision) return
+    if (room.value?.id === next.id && room.value.revision > next.revision) return
     const previous = room.value
     room.value = next
     const account = useAccountStore()
-    if (next.match?.status === 'in_progress' && next.participantIds.includes(account.userId)) account.activeRoom = next
-    else if (account.activeRoom?.id === next.id) account.activeRoom = null
-    const listedRoom = account.rooms.find(item => item.id === next.id)
-    if (listedRoom) {
-      listedRoom.code = next.code
-      listedRoom.matchId = next.match?.id ?? null
-      listedRoom.matchStatus = next.match?.status ?? null
-    }
+    account.currentRoom = next
+    if (previous?.id === next.id && previous.revision === next.revision) return
     if (previous?.match?.id !== next.match?.id) {
       sounds.stop()
       numericBuffer.value = ''
@@ -104,9 +98,18 @@ export const useMatchStore = defineStore('match', () => {
     })
     source.addEventListener('revoked', () => {
       if (mine !== generation) return
+      if (uncertain.value?.roomId === id && uncertain.value.action.type === 'leave') {
+        source?.close()
+        connected.value = false
+        sounds.stop()
+        return
+      }
       disconnect()
       room.value = null
-      error.value = 'Session expired or room access was removed. Sign in or return to Rooms.'
+      uncertain.value = null
+      if (useAccountStore().currentRoom?.id === id) useAccountStore().currentRoom = null
+      error.value = 'This room is no longer available. Return to Play or check History for finished results.'
+      void useAccountStore().load()
     })
     source.onerror = () => {
       if (mine !== generation) return
@@ -120,6 +123,14 @@ export const useMatchStore = defineStore('match', () => {
     uncertain.value = request
     pending.value = true
     try {
+      if (request.action.type === 'leave') {
+        await $fetch(`/api/rooms/${request.roomId}/membership`, { method: 'DELETE', body: { expectedRevision: request.expectedRevision }, retry: 1, retryStatusCodes: [408, 502, 503, 504], timeout: 15_000 })
+        if (mine !== generation) return false
+        reset()
+        useAccountStore().currentRoom = null
+        await useAccountStore().load()
+        return true
+      }
       const next = await $fetch<RoomView>(`/api/rooms/${request.roomId}/actions`, { method: 'POST', body: request, retry: 1, retryStatusCodes: [408, 502, 503, 504], timeout: 15_000 })
       if (mine !== generation) return false
       if (room.value?.id === request.roomId) acceptRoom(next, true)
@@ -133,8 +144,11 @@ export const useMatchStore = defineStore('match', () => {
       if (!status || status >= 500 || status === 408) uncertain.value = request
       else {
         uncertain.value = null
-        if (room.value?.id === request.roomId) await refresh(request.roomId).catch(() => {})
-        if (request.action.type === 'start' && status === 409) await useAccountStore().load()
+        if (request.action.type !== 'leave' && room.value?.id === request.roomId) await refresh(request.roomId).catch(() => {})
+        if ((request.action.type === 'start' || request.action.type === 'leave') && status === 409) {
+          const data = await useAccountStore().load()
+          if (request.action.type === 'leave' && room.value?.id === request.roomId && data?.currentRoom) acceptRoom(data.currentRoom)
+        }
       }
       error.value = apiError(cause)
       return false
@@ -145,6 +159,10 @@ export const useMatchStore = defineStore('match', () => {
     return send({ roomId: room.value.id, requestId: crypto.randomUUID(), expectedRevision: room.value.revision, action })
   }
   async function retryUncertain() { if (uncertain.value && !pending.value) return send(uncertain.value) }
+  async function leaveRoom(target: RoomView) {
+    if (pending.value || uncertain.value) return false
+    return send({ roomId: target.id, requestId: crypto.randomUUID(), expectedRevision: target.revision, action: { type: 'leave' } })
+  }
   async function startMatch(settings: GameSettings, players: Array<{ id: string, name: string, color: string }>) {
     try {
       const created = await $fetch<RoomView>('/api/rooms', { method: 'POST', body: { settings } })
@@ -174,5 +192,5 @@ export const useMatchStore = defineStore('match', () => {
   }
   async function undoLastDart() { if (canUndo.value) return act({ type: 'undo' }) }
   async function clearMatch() { return act({ type: 'abandon' }) }
-  return { room, activeMatch, currentPlayer, selectedMultiplier, numericBuffer, transitionLocked, connected, pending, error, uncertain, canScore, canUndo, acceptRoom, connect, disconnect, reset, refresh, act, retryUncertain, startMatch, setMultiplier, appendNumericDigit, popNumericDigit, clearNumericBuffer, addDart, addSegment, addMiss, addBull, submitNumericThrow, undoLastDart, clearMatch }
+  return { room, activeMatch, currentPlayer, selectedMultiplier, numericBuffer, transitionLocked, connected, pending, error, uncertain, canScore, canUndo, acceptRoom, connect, disconnect, reset, refresh, act, retryUncertain, leaveRoom, startMatch, setMultiplier, appendNumericDigit, popNumericDigit, clearNumericBuffer, addDart, addSegment, addMiss, addBull, submitNumericThrow, undoLastDart, clearMatch }
 })

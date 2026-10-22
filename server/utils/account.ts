@@ -1,24 +1,27 @@
 import type { PoolClient } from 'pg'
-import type { AccountData, Preferences, RoomListItem } from '../../shared/types/rooms'
+import type { AccountData, Preferences } from '../../shared/types/rooms'
 import { defaultPreferences } from '../../shared/types/rooms'
 import type { MatchSummary, PlayerIdentity } from '../../shared/types/darts'
 import { getPool } from '../db/db'
-import { ensureSelf, readRoom } from './rooms'
+import { ensureSelf, expireRooms, readRoom, transaction } from './rooms'
 
 export async function readAccount(user: { id: string, name: string }): Promise<AccountData> {
+  await expireRooms()
   const db = getPool()
   const self = await ensureSelf(db, user)
-  const [prefs, players, history, rooms, active] = await Promise.all([
+  const [prefs, players, history, currentRoom] = await Promise.all([
     db.query<{ data: Preferences }>('SELECT data FROM preferences WHERE user_id=$1', [user.id]),
     db.query<PlayerIdentity>('SELECT id,name,color FROM players WHERE owner_id=$1 AND NOT archived ORDER BY is_self DESC,name,id', [user.id]),
     db.query<{ summary: MatchSummary }>(`SELECT m.summary FROM matches m JOIN participants p ON p.match_id=m.id LEFT JOIN hidden_history h ON h.match_id=m.id AND h.user_id=p.user_id WHERE p.user_id=$1 AND m.summary IS NOT NULL AND h.match_id IS NULL ORDER BY (m.summary->>'finishedAt')::bigint DESC`, [user.id]),
-    db.query<RoomListItem>(`SELECT r.id,r.code,r.match_id AS "matchId",g.state->>'status' AS "matchStatus" FROM rooms r JOIN members m ON m.room_id=r.id LEFT JOIN matches g ON g.id=r.match_id WHERE m.user_id=$1 ORDER BY r.id`, [user.id]),
-    db.query<{ room_id: string }>('SELECT m.room_id FROM participants p JOIN matches m ON m.id=p.match_id WHERE p.user_id=$1 AND p.active', [user.id])
+    transaction(async client => {
+      const membership = await client.query<{ id: string }>('SELECT r.id FROM rooms r JOIN members m ON m.room_id=r.id WHERE m.user_id=$1 FOR UPDATE OF r', [user.id])
+      return membership.rows[0] ? await readRoom(client, membership.rows[0].id, user.id) : null
+    })
   ])
   return {
     ...(prefs.rows[0]?.data ?? structuredClone(defaultPreferences)), self, players: players.rows,
-    history: history.rows.map(row => row.summary), rooms: rooms.rows,
-    activeRoom: active.rows[0] ? await readRoom(db, active.rows[0].room_id, user.id) : null
+    history: history.rows.map(row => row.summary),
+    currentRoom
   }
 }
 

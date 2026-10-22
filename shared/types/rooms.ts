@@ -1,4 +1,7 @@
-import type { AtcSettings, GameSettings, Match, MatchStatus, MatchSummary, PlayerIdentity, X01Settings } from './darts'
+import type { AtcSettings, GameSettings, Match, MatchSummary, PlayerIdentity, X01Settings } from './darts'
+
+export const ROOM_GRACE_MS = 5 * 60_000
+export const ROOM_CONNECTED_MS = 15_000
 
 export interface Preferences {
   settings: X01Settings
@@ -11,6 +14,8 @@ export interface RoomMember {
   name: string
   roster: PlayerIdentity[]
   ready: boolean
+  connected: boolean
+  expiresAt: number
 }
 
 export interface RoomView {
@@ -28,19 +33,11 @@ export interface RoomView {
   locked: boolean
 }
 
-export interface RoomListItem {
-  id: string
-  code: string
-  matchId: string | null
-  matchStatus: MatchStatus | null
-}
-
 export interface AccountData extends Preferences {
   self: PlayerIdentity
   players: PlayerIdentity[]
   history: MatchSummary[]
-  rooms: RoomListItem[]
-  activeRoom: RoomView | null
+  currentRoom: RoomView | null
 }
 
 export const defaultPreferences: Preferences = {

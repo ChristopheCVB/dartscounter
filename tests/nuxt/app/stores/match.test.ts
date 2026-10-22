@@ -1,4 +1,4 @@
-import { createError } from 'h3'
+import { createError, readBody } from 'h3'
 import { mockNuxtImport, registerEndpoint } from '@nuxt/test-utils/runtime'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -23,24 +23,20 @@ const twenty = { segment: 20, multiplier: 1 } as const
 
 beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks() })
 
-describe('account active match', () => {
-  it('retains the active room while browsing a different lobby and clears it on abandonment', () => {
+describe('current room membership', () => {
+  it('keeps the current room between matches and updates presence without a scoring revision', () => {
     const account = useAccountStore()
     account.userId = 'owner'
-    account.rooms = [{ id: 'room', code: 'ABCDEFGH', matchId: null, matchStatus: null }]
     const store = useMatchStore()
     const active = { ...room(engine.createMatch(settings, seeds), 1), participantIds: ['owner'] }
     store.acceptRoom(active)
-    expect(account.activeRoom?.id).toBe('room')
-    expect(account.rooms[0]).toMatchObject({ matchId: active.match!.id, matchStatus: 'in_progress' })
-    store.acceptRoom({ ...active, id: 'other-lobby', match: null, participantIds: [] })
-    expect(store.activeMatch).toBeNull()
-    expect(account.activeRoom?.match?.id).toBe(active.match!.id)
+    expect(account.currentRoom?.id).toBe('room')
+    store.acceptRoom({ ...active, members: [{ userId: 'owner', name: 'Owner', roster: [], ready: false, connected: false, expiresAt: Date.now() + 100_000 }] })
+    expect(account.currentRoom?.members[0]?.connected).toBe(false)
     store.acceptRoom({ ...active, revision: 2, match: { ...active.match!, status: 'abandoned' } })
-    expect(account.activeRoom).toBeNull()
-    expect(account.rooms[0]?.matchStatus).toBe('abandoned')
+    expect(account.currentRoom?.match?.status).toBe('abandoned')
     account.clear()
-    expect(account.activeRoom).toBeNull()
+    expect(account.currentRoom).toBeNull()
   })
 
   it('refreshes account status when another device has started a conflicting match', async () => {
@@ -59,10 +55,62 @@ describe('account active match', () => {
     } finally { removeAction(); removeRoom(); reload.mockRestore() }
   })
 
-  it('does not reserve the account for a match it is only watching', () => {
+  it('tracks the current room for spectators too', () => {
     useAccountStore().userId = 'spectator'
     useMatchStore().acceptRoom({ ...room(engine.createMatch(settings, seeds), 1), participantIds: ['owner'] })
-    expect(useAccountStore().activeRoom).toBeNull()
+    expect(useAccountStore().currentRoom?.id).toBe('room')
+  })
+
+  it('retains an ambiguous leave for retry with the same revision, then clears room state', async () => {
+    const account = useAccountStore()
+    const reload = vi.spyOn(account, 'load').mockResolvedValue(null)
+    const current = room(engine.createMatch(settings, seeds), 7)
+    const store = useMatchStore()
+    store.acceptRoom(current)
+    let succeed = false
+    const revisions: number[] = []
+    const remove = registerEndpoint('/api/rooms/room/membership', { method: 'DELETE', handler: async event => {
+      revisions.push((await readBody(event)).expectedRevision)
+      if (!succeed) throw createError({ statusCode: 503, statusMessage: 'Response lost' })
+      return { ok: true }
+    } })
+    try {
+      expect(await store.leaveRoom(current)).toBe(false)
+      expect(store.uncertain).toMatchObject({ roomId: 'room', expectedRevision: 7, action: { type: 'leave' } })
+      expect(account.currentRoom?.id).toBe('room')
+      succeed = true
+      expect(await store.retryUncertain()).toBe(true)
+      expect(revisions.length).toBeGreaterThanOrEqual(2)
+      expect(revisions.every(revision => revision === 7)).toBe(true)
+      expect(store.room).toBeNull()
+      expect(store.uncertain).toBeNull()
+      expect(account.currentRoom).toBeNull()
+      expect(reload).toHaveBeenCalledOnce()
+    } finally { remove(); reload.mockRestore() }
+  })
+
+  it('accepts a successful leave when SSE revocation arrives before its HTTP response', async () => {
+    class RoomSource extends EventTarget {
+      static current: RoomSource
+      constructor() { super(); RoomSource.current = this }
+      close() {}
+    }
+    vi.stubGlobal('EventSource', RoomSource)
+    const account = useAccountStore()
+    const reload = vi.spyOn(account, 'load').mockResolvedValue(null)
+    const store = useMatchStore()
+    const current = room(engine.createMatch(settings, seeds), 8)
+    store.acceptRoom(current)
+    const remove = registerEndpoint('/api/rooms/room/membership', { method: 'DELETE', handler: () => {
+      RoomSource.current.dispatchEvent(new Event('revoked'))
+      return { ok: true }
+    } })
+    try {
+      await store.connect('room')
+      expect(await store.leaveRoom(current)).toBe(true)
+      expect(store.uncertain).toBeNull()
+      expect(account.currentRoom).toBeNull()
+    } finally { store.disconnect(); remove(); reload.mockRestore(); vi.unstubAllGlobals() }
   })
 })
 
