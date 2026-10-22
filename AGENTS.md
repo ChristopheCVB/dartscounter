@@ -23,6 +23,7 @@ Concise map of the codebase for AI agents and developers. Authoritative behavior
 - **specs/** — Product and implementation specs (MVP, architecture, data model, feature implementation notes). See [specs/README.md](specs/README.md) for reading order.
 - **tests/** — Vitest projects `unit/`, `nuxt/`, `integration/`, and `e2e/`; paths within each project mirror the source tree (e.g. `unit/shared/utils/scoringEngine.test.ts`, `nuxt/app/components/setup/MatchConfigForm.test.ts`, `e2e/app/pages/match/[id].test.ts`). All test files are included in `bun run typecheck`.
 - **Config:** [nuxt.config.ts](nuxt.config.ts) — modules `@nuxt/ui`, `@pinia/nuxt`, `@vueuse/nuxt`; Pinia `storesDirs: ['app/stores/**']`; CSS from `~/assets/css/main.css`.
+- **Runtime:** Bun is pinned in `mise.toml`; `bunfig.toml` sets `run.bun = true` so `bun run` executes package scripts and child commands with Bun.
 
 ## Responsibility split
 

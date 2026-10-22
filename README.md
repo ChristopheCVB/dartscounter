@@ -4,7 +4,7 @@ A server-backed darts scoring app with reusable multiplayer rooms, built with Nu
 
 ## Setup
 
-Install [mise](https://mise.jdx.dev/getting-started.html), then install the Bun version pinned in `mise.toml` and the project dependencies:
+Install [mise](https://mise.jdx.dev/getting-started.html), then install Bun 1.4.4, pinned in `mise.toml`, and the project dependencies:
 
 ```bash
 mise trust
@@ -13,6 +13,8 @@ mise exec -- bun install --frozen-lockfile
 ```
 
 With mise shell activation enabled, you can run `bun` directly. Otherwise, prefix commands with `mise exec --` as shown below.
+
+[`bunfig.toml`](bunfig.toml) sets [`run.bun = true`](https://bun.sh/docs/runtime/bunfig#run-bun-auto-alias-node-to-bun), so package scripts and their child commands run with Bun without repeating `bun --bun` in each script. Keep using `bun run` to apply this configuration.
 
 ## Database and authentication
 
@@ -97,7 +99,7 @@ docker build -t dartscounter .
 docker run --rm --env-file .env -p 3000:3000 dartscounter
 ```
 
-The multistage image builds with Bun 1.4.3 and contains the production `.output` directory, the Bun runtime, and `curl` for Coolify's HTTP health checks. It listens on port 3000. Configure Coolify's HTTP health check to use port 3000 and path `/api/health`. Provide a dedicated PostgreSQL 18 database with persistent storage and backups; the application image includes migrations. Inside a container, set `NUXT_DATABASE_URL` to a reachable database hostname, rather than `localhost`.
+The multistage image builds with Bun 1.4.4 and contains the production `.output` directory, the Bun runtime, and `curl` for Coolify's HTTP health checks. It listens on port 3000. Configure Coolify's HTTP health check to use port 3000 and path `/api/health`. Provide a dedicated PostgreSQL 18 database with persistent storage and backups; the application image includes migrations. Inside a container, set `NUXT_DATABASE_URL` to a reachable database hostname, rather than `localhost`.
 
 Deploy one Bun app instance. Room updates use authenticated SSE; disable proxy buffering and allow long-lived connections. Browser reconnects reload authoritative PostgreSQL state. Scaling to multiple app replicas requires a shared notification bus before changing the replica count. Production email delivery and Turnstile must be configured with the app's domain.
 
@@ -128,7 +130,7 @@ Runner registration and Coolify settings are managed outside this repository. Av
 mise exec -- bun update --latest
 ```
 
-Commit `package.json` and `bun.lock` together. When upgrading Bun, keep the exact version in `mise.toml`, `packageManager`, and the Dockerfile's `BUN_VERSION` in sync, and update `engines.bun` to the minimum verified version. Actions read Bun's version from `mise.toml`.
+Commit `package.json` and `bun.lock` together. When upgrading Bun, keep the exact version in `mise.toml`, `packageManager`, and the Dockerfile's `oven/bun` image tag in sync, and update `engines.bun` to the minimum verified version. Keep the image tag literal so Dependabot can discover Docker updates. Actions read Bun's version from `mise.toml`.
 
 Dependabot checks Bun packages, Docker base images, and GitHub Actions daily at 10:00 UTC, with a six-day cooldown. Minor and patch updates are grouped per ecosystem; major updates remain separate.
 

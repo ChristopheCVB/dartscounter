@@ -1,6 +1,4 @@
-ARG BUN_VERSION=1.4.3
-
-FROM oven/bun:${BUN_VERSION} AS base
+FROM oven/bun:1.4.4 AS base
 WORKDIR /app
 
 FROM base AS build
