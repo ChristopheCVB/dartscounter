@@ -37,7 +37,7 @@
         </UForm>
       </template>
     </UModal>
-    <UModal v-model:open="confirmOpen" class="app-shell" :title="removal === 'all' ? 'Clear guest players?' : 'Remove this player?'" description="Players will be removed from your saved list. Past match results are kept. Your own player cannot be removed." :dismissible="!pending" :close="!pending">
+    <UModal v-model:open="confirmOpen" class="app-shell" :title="removal === 'all' ? 'Clear guest players?' : 'Remove this player?'" description="Players will be removed from your saved list and waiting-room rosters. Running matches can finish, and past results are kept. Your own player cannot be removed." :dismissible="!pending" :close="!pending">
       <template #footer><UButton color="neutral" variant="soft" :disabled="pending" @click="removal = null">Cancel</UButton><UButton color="error" :loading="pending" @click="removePlayers">{{ removal === 'all' ? 'Clear guest players' : 'Remove player' }}</UButton></template>
     </UModal>
   </section>

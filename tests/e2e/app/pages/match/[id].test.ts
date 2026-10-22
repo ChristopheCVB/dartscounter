@@ -101,6 +101,61 @@ describe('local matches', { timeout: 60_000 }, async () => {
     expect(await page.getByRole('menuitem', { name: 'Remove player', exact: true }).count()).toBe(0)
   })
 
+  it.each(['remove', 'clear'] as const)('updates live rosters after guest %s and starts with a recreated name', async removal => {
+    page = (await authenticatedPage('Guest owner')).page
+    async function post<T>(path: string, data: object) {
+      const response = await page.request.post(url(path), { data, headers: { Origin: new URL(url('/')).origin } })
+      expect(response.status(), await response.text()).toBe(200)
+      return await response.json() as T
+    }
+    let room = await post<RoomView>('/api/rooms', {})
+    const self = room.members[0]!.roster[0]!
+    const guests = await post<{ selected: Array<{ id: string }> }>('/api/players', { type: 'ensure', players: [{ name: 'Room guest', color: '#30c981' }] })
+    for (const action of [{ type: 'roster', playerIds: [self.id, guests.selected[0]!.id] }, { type: 'ready', ready: true }] as RoomAction[]) {
+      room = await post<RoomView>(`/api/rooms/${room.id}/actions`, { requestId: crypto.randomUUID(), expectedRevision: room.revision, action })
+    }
+    const observerContext = await (await getBrowser()).newContext({ storageState: await page.context().storageState() })
+    const observer = await observerContext.newPage()
+    try {
+      await observer.goto(url(`/room/${room.id}`), { waitUntil: 'networkidle' })
+      const attendance = observer.locator('section').filter({ has: observer.getByRole('heading', { name: 'Who’s here', exact: true }) }).last()
+      await expect.poll(() => attendance.textContent()).toContain('Room guest')
+      await page.goto(url('/players'), { waitUntil: 'hydration' })
+      if (removal === 'remove') {
+        await page.getByRole('button', { name: 'Options for Room guest', exact: true }).filter({ visible: true }).click()
+        await page.getByRole('menuitem', { name: 'Remove player', exact: true }).click()
+      } else {
+        await page.getByRole('button', { name: 'Player options', exact: true }).click()
+        await page.getByRole('menuitem', { name: 'Clear guest players', exact: true }).click()
+      }
+      await page.getByRole('dialog').getByRole('button', { name: removal === 'remove' ? 'Remove player' : 'Clear guest players', exact: true }).click()
+      await page.getByRole('dialog').waitFor({ state: 'hidden' })
+      const saved = (await testPool.query<{ roster: Array<{ id: string }>, ready: boolean }>('SELECT roster,ready FROM members WHERE room_id=$1', [room.id])).rows[0]!
+      expect(saved.roster.map(player => player.id)).toEqual([self.id])
+      expect(saved.ready).toBe(false)
+      await expect.poll(() => attendance.textContent()).not.toContain('Room guest')
+      await expect.poll(() => attendance.textContent()).toContain('Not ready')
+      await page.getByRole('button', { name: 'Add player', exact: true }).click()
+      await page.getByRole('dialog').getByRole('textbox', { name: /^Name/ }).fill('Room guest')
+      await page.getByRole('dialog').getByRole('button', { name: 'Add player', exact: true }).click()
+      await page.getByRole('dialog').waitFor({ state: 'hidden' })
+      await page.goto(url(`/room/${room.id}`), { waitUntil: 'hydration' })
+      const guest = page.getByRole('checkbox', { name: 'Room guest', exact: true })
+      await guest.waitFor()
+      expect(await guest.isChecked()).toBe(false)
+      await guest.check()
+      await page.getByRole('button', { name: 'Save roster', exact: true }).click()
+      await expect.poll(() => page.getByRole('button', { name: 'Ready', exact: true }).isEnabled()).toBe(true)
+      await page.getByRole('button', { name: 'Ready', exact: true }).click()
+      await expect.poll(() => page.getByRole('button', { name: 'Start match', exact: true }).isEnabled()).toBe(true)
+      await page.getByRole('button', { name: 'Start match', exact: true }).click()
+      await page.getByRole('link', { name: 'Open match', exact: true }).waitFor()
+      const started = await (await page.request.get(url(`/api/rooms/${room.id}`))).json() as RoomView
+      const fresh = started.match!.players.find(player => player.name === 'Room guest')!
+      expect(fresh.id).not.toBe(guests.selected[0]!.id)
+    } finally { await observerContext.close() }
+  })
+
   it('renders both real Vue templates and sends HTML/text with subjects through the test Resend transport', async () => {
     const response = await fetch(url('/__test__/emails'))
     expect(response.status).toBe(200)

@@ -9,6 +9,7 @@ This specification supersedes the localStorage/no-auth requirements in specifica
 - PostgreSQL 18 stores settings, account-owned player profiles, rooms, membership, matches, undo state, action receipts, and history visibility.
 - Existing browser data is untouched and is not imported. All play requires an account and an internet connection.
 - Each account has its own player identity and can create named/color-coded guests. Guest identities belong to that account; names never link accounts.
+- Removing or clearing guests removes them from waiting-room rosters and clears everyone's readiness in affected rooms. Running matches retain their player snapshots until they finish or are abandoned; deleted guests are then removed from the lobby. Recreating a deleted name creates a fresh identity and statistics, while past results keep the old identity. Loading an existing lobby also removes stale deleted guests.
 - Finished matches are shared with participating accounts. Hiding a history entry affects only that account and its lifetime statistics. Profile changes preserve match snapshots.
 
 ## Rooms

@@ -7,6 +7,7 @@ import type { RoomView } from '../../shared/types/rooms'
 import { defaultPreferences } from '../../shared/types/rooms'
 import { useMatchState } from '../../shared/utils/matchState'
 import type { RoomAction } from '../../shared/utils/validation'
+import { publishRoom } from './live'
 
 type Connection = Pick<PoolClient, 'query'>
 interface RoomRow { id: string, code: string, owner_id: string, revision: number, settings: GameSettings, match_id: string | null }
@@ -47,6 +48,35 @@ export async function readRoom(db: Connection, roomId: string, userId: string): 
     canUndo: !!match && !match.locked && match.undo.length > 0 && participantIds.includes(userId),
     locked: match?.locked ?? false
   }
+}
+
+// Callers hold the room lock and advance its revision if the roster changes.
+export async function pruneRoomRosters(db: Connection, room: RoomView) {
+  if (room.match?.status === 'in_progress') return false
+  const profiles = await db.query<{ id: string }>('SELECT id FROM players WHERE NOT archived AND owner_id=ANY($1::text[])', [room.members.map(member => member.userId)])
+  const active = new Set(profiles.rows.map(player => player.id))
+  let changed = false
+  for (const member of room.members) {
+    const roster = member.roster.filter(player => active.has(player.id))
+    if (roster.length === member.roster.length) continue
+    await db.query('UPDATE members SET roster=$3 WHERE room_id=$1 AND user_id=$2', [room.id, member.userId, JSON.stringify(roster)])
+    changed = true
+  }
+  if (changed) await db.query('UPDATE members SET ready=false WHERE room_id=$1', [room.id])
+  return changed
+}
+
+export async function loadRoom(roomId: string, userId: string) {
+  const result = await transaction(async db => {
+    await db.query('SELECT id FROM rooms WHERE id=$1 FOR UPDATE', [roomId])
+    const room = await readRoom(db, roomId, userId)
+    const changed = await pruneRoomRosters(db, room)
+    if (!changed) return { room, changed }
+    await db.query('UPDATE rooms SET revision=revision+1 WHERE id=$1', [roomId])
+    return { room: await readRoom(db, roomId, userId), changed }
+  })
+  if (result.changed) publishRoom(roomId)
+  return result.room
 }
 
 export function newCode() {
@@ -114,6 +144,7 @@ export async function mutateRoom(roomId: string, userId: string, requestId: stri
       await db.query('UPDATE members SET ready=false WHERE room_id=$1', [roomId])
     } else if (action.type === 'roster') {
       lobbyOnly()
+      await db.query('SELECT id FROM "user" WHERE id=$1 FOR UPDATE', [userId])
       const roster = await db.query<PlayerIdentity>('SELECT id,name,color FROM players WHERE owner_id=$1 AND NOT archived AND id=ANY($2::uuid[])', [userId, action.playerIds])
       if (roster.rows.length !== action.playerIds.length) return fail(400, 'Select only your own active players')
       await db.query('UPDATE members SET roster=$3 WHERE room_id=$1 AND user_id=$2', [roomId, userId, JSON.stringify(roster.rows)])
@@ -189,6 +220,12 @@ export async function mutateRoom(roomId: string, userId: string, requestId: stri
           }
           row.state = previous
           row.summary = null
+          if (!running) {
+            for (const id of view.participantIds) {
+              const roster = row.state.players.filter(player => row.controllers[player.id] === id).map(({ id, name, color }) => ({ id, name, color }))
+              await db.query('UPDATE members SET roster=$3 WHERE room_id=$1 AND user_id=$2', [roomId, id, JSON.stringify(roster)])
+            }
+          }
         } else if (action.type === 'dart') {
           if (!running) return fail(409, 'Match is not in progress')
           const player = row.state.players[row.state.currentPlayerIndex]!
@@ -204,6 +241,7 @@ export async function mutateRoom(roomId: string, userId: string, requestId: stri
       await db.query('UPDATE participants SET active=$2 WHERE match_id=$1', [row.id, row.state.status === 'in_progress'])
       if (!running || row.state.status !== 'in_progress') await db.query('UPDATE members SET ready=false WHERE room_id=$1', [roomId])
     }
+    if (running && row?.state.status !== 'in_progress') await pruneRoomRosters(db, await readRoom(db, roomId, userId))
     await db.query('UPDATE rooms SET revision=revision+1 WHERE id=$1', [roomId])
     const result = await readRoom(db, roomId, userId)
     await db.query('INSERT INTO actions (room_id,user_id,request_id,input,result) VALUES ($1,$2,$3,$4,$5)', [roomId, userId, requestId, input, JSON.stringify(result)])

@@ -1,11 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { cleanupDatabase, prepareDatabase, testPool, testUser } from '../../helpers/database'
-import { createRoom, ensureSelf, joinRoom, mutateRoom, readRoom, transaction } from '../../../server/utils/rooms'
+import { createRoom, ensureSelf, joinRoom, loadRoom, mutateRoom, readRoom, transaction } from '../../../server/utils/rooms'
 import { getPool } from '../../../server/db/db'
 import { ensurePlayers, readAccount } from '../../../server/utils/account'
 import type { RoomView } from '../../../shared/types/rooms'
 import type { RoomAction } from '../../../shared/utils/validation'
 import { roomActionSchema } from '../../../shared/utils/validation'
+import { getAtcTargetSegment } from '../../../shared/utils/atcEngine'
 
 beforeAll(prepareDatabase)
 afterAll(async () => { await cleanupDatabase(); await getPool().end() })
@@ -25,6 +26,60 @@ async function started(mode: 'x01' | 'atc' = 'x01') {
 }
 
 describe('server-authoritative rooms', () => {
+  it('repairs stale lobby rosters, clears all readiness, and allows a fresh guest with the same name', async () => {
+    const owner = await testUser('Owner')
+    const other = await testUser('Other')
+    let room = await createRoom(owner)
+    room = await joinRoom(room.code, other)
+    const self = room.members.find(member => member.userId === owner.id)!.roster[0]!
+    const [deleted] = await transaction(db => ensurePlayers(db, owner.id, [{ name: 'Guest', color: '#30c981' }]))
+    room = await act(room, owner.id, { type: 'roster', playerIds: [self.id, deleted!.id] })
+    room = await act(room, owner.id, { type: 'ready', ready: true })
+    room = await act(room, other.id, { type: 'ready', ready: true })
+    await testPool.query('UPDATE players SET archived=true WHERE id=$1', [deleted!.id])
+    const [fresh] = await transaction(db => ensurePlayers(db, owner.id, [{ name: 'Guest', color: '#38bdf8' }]))
+    expect(fresh!.id).not.toBe(deleted!.id)
+    const outsider = await testUser('Outsider')
+    await expect(loadRoom(room.id, outsider.id)).rejects.toMatchObject({ statusCode: 404 })
+    const repaired = await loadRoom(room.id, owner.id)
+    expect(repaired.revision).toBe(room.revision + 1)
+    expect(repaired.members.find(member => member.userId === owner.id)!.roster).toEqual([self])
+    expect(repaired.members.every(member => !member.ready)).toBe(true)
+    expect(await readRoom(getPool(), room.id, owner.id)).toEqual(repaired)
+    expect(await loadRoom(room.id, owner.id)).toEqual(repaired)
+    room = await act(repaired, owner.id, { type: 'roster', playerIds: [self.id, fresh!.id] })
+    room = await act(room, owner.id, { type: 'ready', ready: true })
+    room = await act(room, other.id, { type: 'ready', ready: true })
+    room = await act(room, owner.id, { type: 'start' })
+    expect(room.match!.players.map(player => player.id)).toContain(fresh!.id)
+    expect(room.match!.players.map(player => player.id)).not.toContain(deleted!.id)
+  })
+
+  it('keeps deleted guests playing, prunes them after a win, and restores them for winning-dart undo', async () => {
+    const owner = await testUser('Owner')
+    let room = await createRoom(owner, { mode: 'atc', fastForward: true })
+    const self = room.members[0]!.roster[0]!
+    const [guest] = await transaction(db => ensurePlayers(db, owner.id, [{ name: 'Guest', color: '#30c981' }]))
+    room = await act(room, owner.id, { type: 'roster', playerIds: [self.id, guest!.id] })
+    room = await act(room, owner.id, { type: 'ready', ready: true })
+    room = await act(room, owner.id, { type: 'start' })
+    await testPool.query('UPDATE players SET archived=true WHERE id=$1', [guest!.id])
+    expect(await loadRoom(room.id, owner.id)).toEqual(room)
+    for (let dart = 0; dart < 20 && room.match!.status === 'in_progress'; dart++) {
+      const target = room.match!.players[room.match!.currentPlayerIndex]!.atcTarget!
+      room = await act(room, owner.id, { type: 'dart', dart: { segment: getAtcTargetSegment(target), multiplier: target > 20 ? 2 : 3 } })
+    }
+    expect(room.match!.status).toBe('finished')
+    expect(room.members[0]!.roster).toEqual([self])
+    expect(room.summary!.players.map(player => player.playerId)).toContain(guest!.id)
+    room = await act(room, owner.id, { type: 'undo' })
+    expect(room.match!.status).toBe('in_progress')
+    expect(room.members[0]!.roster.map(player => player.id).sort()).toEqual([self.id, guest!.id].sort())
+    room = await act(room, owner.id, { type: 'abandon' })
+    expect(room.members[0]!.roster).toEqual([self])
+    expect(room.match!.players.map(player => player.id)).toContain(guest!.id)
+  })
+
   it.each(['x01', 'atc'] as const)('starts %s with one account controlling itself and a guest', async mode => {
     const owner = await testUser('Owner')
     let room = await createRoom(owner, mode === 'x01' ? { mode, startScore: 301, doubleIn: false, doubleOut: true, legsTarget: 1 } : { mode, fastForward: false })
