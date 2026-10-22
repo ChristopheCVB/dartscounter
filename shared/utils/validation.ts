@@ -1,4 +1,5 @@
-import { z } from 'zod'
+// shortcut: use the module namespace until Bun fixes oven-sh/bun#21614.
+import * as z from 'zod'
 import { isValidSegmentMultiplier } from './scoringEngine'
 
 export const playerSchema = z.object({

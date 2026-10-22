@@ -42,6 +42,36 @@ describe('server-authoritative rooms', () => {
     expect(new Set(room.match!.throws.map(dart => dart.playerId))).toEqual(new Set([self.id, guest!.id]))
   })
 
+  it('keeps an unfinished match discoverable after deleting and recreating a guest', async () => {
+    const owner = await testUser('Room owner')
+    let original = await createRoom(owner)
+    const self = original.members[0]!.roster[0]!
+    const [oldGuest] = await transaction(db => ensurePlayers(db, owner.id, [{ name: 'Guest', color: '#30c981' }]))
+    original = await act(original, owner.id, { type: 'roster', playerIds: [self.id, oldGuest!.id] })
+    original = await act(original, owner.id, { type: 'ready', ready: true })
+    original = await act(original, owner.id, { type: 'start' })
+    await testPool.query('UPDATE players SET archived=true WHERE id=$1', [oldGuest!.id])
+    const [newGuest] = await transaction(db => ensurePlayers(db, owner.id, [{ name: 'Guest', color: '#38bdf8' }]))
+    expect(newGuest!.id).not.toBe(oldGuest!.id)
+    let next = await createRoom(owner)
+    next = await act(next, owner.id, { type: 'roster', playerIds: [self.id, newGuest!.id] })
+    next = await act(next, owner.id, { type: 'ready', ready: true })
+
+    const account = await readAccount(owner)
+    expect(account.activeRoom?.id).toBe(original.id)
+    expect(account.rooms.find(room => room.id === original.id)).toMatchObject({ matchId: original.match!.id, matchStatus: 'in_progress' })
+    expect(account.rooms.find(room => room.id === next.id)).toMatchObject({ matchId: null, matchStatus: null })
+    await expect(act(next, owner.id, { type: 'start' })).rejects.toMatchObject({ statusCode: 409, statusMessage: 'Room owner is already playing in another room. Finish or abandon that match first.' })
+
+    original = await act(original, owner.id, { type: 'abandon' })
+    expect((await readAccount(owner)).activeRoom).toBeNull()
+    next = await act(next, owner.id, { type: 'start' })
+    const updated = await readAccount(owner)
+    expect(updated.activeRoom?.id).toBe(next.id)
+    expect(updated.rooms.find(room => room.id === original.id)?.matchStatus).toBe('abandoned')
+    expect(next.match!.players.some(player => player.id === newGuest!.id)).toBe(true)
+  })
+
   it('requires readiness, own profiles, ownership, and distinct player names', async () => {
     const alice = await testUser('Alice')
     const bob = await testUser('Bob')

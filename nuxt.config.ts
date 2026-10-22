@@ -19,6 +19,7 @@ export default defineNuxtConfig({
   pinia: {
     storesDirs: ['app/stores/**']
   },
+  colorMode: { preference: 'dark', fallback: 'dark' },
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
   nitro: {

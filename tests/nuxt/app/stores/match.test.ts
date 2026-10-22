@@ -1,6 +1,8 @@
-import { mockNuxtImport } from '@nuxt/test-utils/runtime'
+import { createError } from 'h3'
+import { mockNuxtImport, registerEndpoint } from '@nuxt/test-utils/runtime'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { useAccountStore } from '~/stores/account'
 import { useMatchStore } from '~/stores/match'
 import { useMatchState } from '~~/shared/utils/matchState'
 import type { DartInput, Match, X01Settings } from '~~/shared/types/darts'
@@ -20,6 +22,49 @@ function darts(match: Match, inputs: DartInput[]) {
 const twenty = { segment: 20, multiplier: 1 } as const
 
 beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks() })
+
+describe('account active match', () => {
+  it('retains the active room while browsing a different lobby and clears it on abandonment', () => {
+    const account = useAccountStore()
+    account.userId = 'owner'
+    account.rooms = [{ id: 'room', code: 'ABCDEFGH', matchId: null, matchStatus: null }]
+    const store = useMatchStore()
+    const active = { ...room(engine.createMatch(settings, seeds), 1), participantIds: ['owner'] }
+    store.acceptRoom(active)
+    expect(account.activeRoom?.id).toBe('room')
+    expect(account.rooms[0]).toMatchObject({ matchId: active.match!.id, matchStatus: 'in_progress' })
+    store.acceptRoom({ ...active, id: 'other-lobby', match: null, participantIds: [] })
+    expect(store.activeMatch).toBeNull()
+    expect(account.activeRoom?.match?.id).toBe(active.match!.id)
+    store.acceptRoom({ ...active, revision: 2, match: { ...active.match!, status: 'abandoned' } })
+    expect(account.activeRoom).toBeNull()
+    expect(account.rooms[0]?.matchStatus).toBe('abandoned')
+    account.clear()
+    expect(account.activeRoom).toBeNull()
+  })
+
+  it('refreshes account status when another device has started a conflicting match', async () => {
+    const account = useAccountStore()
+    const reload = vi.spyOn(account, 'load').mockResolvedValue(null)
+    const lobby = { ...room(engine.createMatch(settings, seeds), 0), match: null }
+    const store = useMatchStore()
+    store.acceptRoom(lobby)
+    store.connected = true
+    const removeAction = registerEndpoint('/api/rooms/room/actions', { method: 'POST', handler: () => { throw createError({ statusCode: 409, statusMessage: 'Already playing elsewhere' }) } })
+    const removeRoom = registerEndpoint('/api/rooms/room', () => lobby)
+    try {
+      expect(await store.act({ type: 'start' })).toBe(false)
+      expect(reload).toHaveBeenCalledOnce()
+      expect(store.uncertain).toBeNull()
+    } finally { removeAction(); removeRoom(); reload.mockRestore() }
+  })
+
+  it('does not reserve the account for a match it is only watching', () => {
+    useAccountStore().userId = 'spectator'
+    useMatchStore().acceptRoom({ ...room(engine.createMatch(settings, seeds), 1), participantIds: ['owner'] })
+    expect(useAccountStore().activeRoom).toBeNull()
+  })
+})
 
 describe('live turn audio', () => {
   it('waits for dart three and deduplicates HTTP/SSE responses for every viewer', () => {

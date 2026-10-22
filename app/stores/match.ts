@@ -28,6 +28,15 @@ export const useMatchStore = defineStore('match', () => {
     if (room.value?.id === next.id && room.value.revision >= next.revision) return
     const previous = room.value
     room.value = next
+    const account = useAccountStore()
+    if (next.match?.status === 'in_progress' && next.participantIds.includes(account.userId)) account.activeRoom = next
+    else if (account.activeRoom?.id === next.id) account.activeRoom = null
+    const listedRoom = account.rooms.find(item => item.id === next.id)
+    if (listedRoom) {
+      listedRoom.code = next.code
+      listedRoom.matchId = next.match?.id ?? null
+      listedRoom.matchStatus = next.match?.status ?? null
+    }
     if (previous?.match?.id !== next.match?.id) {
       sounds.stop()
       numericBuffer.value = ''
@@ -125,6 +134,7 @@ export const useMatchStore = defineStore('match', () => {
       else {
         uncertain.value = null
         if (room.value?.id === request.roomId) await refresh(request.roomId).catch(() => {})
+        if (request.action.type === 'start' && status === 409) await useAccountStore().load()
       }
       error.value = apiError(cause)
       return false

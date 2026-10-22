@@ -10,20 +10,23 @@ export const useAccountStore = defineStore('account', () => {
   const userId = ref('')
   const self = ref<PlayerIdentity | null>(null)
   const rooms = ref<AccountData['rooms']>([])
+  const activeRoom = ref<AccountData['activeRoom']>(null)
   const loaded = ref(false)
   const error = ref('')
   let generation = 0
   async function load() {
     const mine = ++generation
     try {
+      const requestFetch = useRequestFetch()
       const [data, session] = await Promise.all([
-        $fetch<AccountData>('/api/account'),
-        $fetch<{ user: { id: string } }>('/api/auth/get-session')
+        requestFetch<AccountData>('/api/account'),
+        requestFetch<{ user: { id: string } }>('/api/auth/get-session')
       ])
       if (mine !== generation) return null
       userId.value = session.user.id
       self.value = data.self
       rooms.value = data.rooms
+      activeRoom.value = data.activeRoom
       useSettingsStore().hydrate(data)
       usePlayersStore().recentPlayers = data.players
       useHistoryStore().entries = data.history
@@ -42,11 +45,12 @@ export const useAccountStore = defineStore('account', () => {
     userId.value = ''
     self.value = null
     rooms.value = []
+    activeRoom.value = null
     loaded.value = false
     useMatchStore().reset()
     usePlayersStore().recentPlayers = []
     useHistoryStore().entries = []
     useSettingsStore().reset()
   }
-  return { userId, self, rooms, loaded, error, load, clear }
+  return { userId, self, rooms, activeRoom, loaded, error, load, clear }
 })

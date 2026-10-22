@@ -1,7 +1,7 @@
 <template>
-  <UCard class="mx-auto max-w-md arcade-glow">
-    <template #header><h1 class="text-xl font-semibold">{{ title }}</h1></template>
-    <form class="grid gap-4" @submit.prevent="submit">
+  <section class="mx-auto grid max-w-md gap-8 py-4 sm:py-8">
+    <header class="page-heading"><h1>{{ title }}</h1><p>{{ description }}</p></header>
+    <form class="grid gap-5" @submit.prevent="submit">
       <UFormField v-if="mode === 'signup'" label="Name" required>
         <UInput v-model="name" autocomplete="name" required maxlength="24" class="w-full" />
       </UFormField>
@@ -14,15 +14,15 @@
       <ClientOnly><NuxtTurnstile v-if="mode !== 'reset' && mode !== 'verify'" :key="captchaKey" v-model="token" /></ClientOnly>
       <UAlert v-if="error" color="error" :title="error" />
       <UAlert v-if="message" color="success" :title="message" />
-      <UButton type="submit" :loading="pending" :disabled="pending || (needsCaptcha && !token)">{{ title }}</UButton>
-      <div class="flex flex-wrap gap-3">
-        <NuxtLink to="/signin">Sign in</NuxtLink>
-        <NuxtLink to="/signup">Create account</NuxtLink>
-        <NuxtLink to="/forgot-password">Forgot password?</NuxtLink>
-        <NuxtLink to="/verify-email">Resend verification</NuxtLink>
+      <UButton type="submit" :loading="pending" class="w-full justify-center" :disabled="pending || (needsCaptcha && !token)">{{ title }}</UButton>
+      <div class="grid gap-3 border-t border-default pt-5 text-sm">
+        <p v-if="mode === 'signin'">New to DartsCounter? <NuxtLink to="/signup" class="font-medium text-primary hover:underline">Create account</NuxtLink></p>
+        <NuxtLink v-else to="/signin" class="text-primary hover:underline">Back to sign in</NuxtLink>
+        <NuxtLink v-if="mode === 'signin' || mode === 'reset'" to="/forgot-password" class="text-primary hover:underline">Forgot password?</NuxtLink>
+        <NuxtLink v-if="mode === 'signin' || mode === 'signup'" to="/verify-email" class="text-muted hover:underline">Resend verification email</NuxtLink>
       </div>
     </form>
-  </UCard>
+  </section>
 </template>
 
 <script setup lang="ts">
@@ -32,6 +32,7 @@ const props = defineProps<{ mode: 'signin' | 'signup' | 'forgot' | 'reset' | 've
 const auth = useAuth()
 const route = useRoute()
 const title = computed(() => ({ signin: 'Sign in', signup: 'Create account', forgot: 'Send password reset', reset: 'Reset password', verify: 'Resend verification email' })[props.mode])
+const description = computed(() => ({ signin: 'Welcome back. Your next game is waiting.', signup: 'Keep your players, matches, and statistics together.', forgot: 'Enter your email and we’ll send a password reset link.', reset: 'Choose a new password with at least 8 characters.', verify: 'Enter your email to request a fresh verification link.' })[props.mode])
 const needsCaptcha = computed(() => !['reset', 'verify'].includes(props.mode))
 const name = ref('')
 const email = ref('')
@@ -40,9 +41,11 @@ const token = ref('')
 const captchaKey = ref(0)
 const pending = ref(false)
 const error = ref('')
-const message = ref(route.query.error ? 'The link is invalid or expired. Request a new one.' : '')
+const message = ref('')
+if (route.query.error) error.value = 'The link is invalid or expired. Request a new one.'
 
 async function submit() {
+  if (pending.value) return
   pending.value = true
   error.value = ''
   message.value = ''
@@ -53,11 +56,11 @@ async function submit() {
       result = await auth.signIn.email({ email: email.value, password: password.value, fetchOptions })
       if (!result.error) {
         await useAccountStore().load()
-        const next = typeof route.query.next === 'string' && /^\/(?!\/)/.test(route.query.next) ? route.query.next : '/rooms'
+        const next = typeof route.query.next === 'string' && /^\/(?!\/)/.test(route.query.next) ? route.query.next : '/'
         await navigateTo(next)
       }
     } else if (props.mode === 'signup') {
-      result = await auth.signUp.email({ name: name.value.trim(), email: email.value, password: password.value, callbackURL: '/rooms', fetchOptions })
+      result = await auth.signUp.email({ name: name.value.trim(), email: email.value, password: password.value, callbackURL: '/', fetchOptions })
       if (!result.error) message.value = 'Check your inbox to verify your account before signing in.'
     } else if (props.mode === 'forgot') {
       result = await auth.requestPasswordReset({ email: email.value, redirectTo: '/reset-password', fetchOptions })
@@ -67,7 +70,7 @@ async function submit() {
       result = await auth.resetPassword({ newPassword: password.value, token: route.query.token })
       if (!result.error) { password.value = ''; message.value = 'Password updated. You can now sign in.' }
     } else {
-      result = await auth.sendVerificationEmail({ email: email.value, callbackURL: '/rooms' })
+      result = await auth.sendVerificationEmail({ email: email.value, callbackURL: '/' })
       if (!result.error) message.value = 'If verification is needed, check your inbox for the link.'
     }
     if (result.error) error.value = result.error.message || 'Unable to complete this request'

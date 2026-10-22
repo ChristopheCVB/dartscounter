@@ -21,9 +21,8 @@ export const usePlayersStore = defineStore('players', () => {
     return result?.selected ?? []
   }
   const addRecentPlayer = (name: string, color?: string) => mutate({ type: 'ensure', players: [{ name, color: normalizePlayerColor(color) }] })
-  const renameRecentPlayer = (id: string, name: string) => mutate({ type: 'update', id, name })
-  const updateRecentPlayerColor = (id: string, color: string) => mutate({ type: 'update', id, color })
+  const updateRecentPlayer = (id: string, player: Pick<PlayerIdentity, 'name' | 'color'>) => mutate({ type: 'update', id, ...player })
   const removeRecentPlayer = (id: string) => mutate({ type: 'remove', id })
   const clearRecentPlayers = () => mutate({ type: 'clear' })
-  return { recentPlayers, recentNames, ensureMany, addRecentPlayer, renameRecentPlayer, updateRecentPlayerColor, removeRecentPlayer, clearRecentPlayers }
+  return { recentPlayers, recentNames, ensureMany, addRecentPlayer, updateRecentPlayer, removeRecentPlayer, clearRecentPlayers }
 })

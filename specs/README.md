@@ -2,9 +2,11 @@
 
 This directory tracks the product/implementation specs for DartsCounter as-built.
 
-Last verified against code: 2026-10-21
+Last verified against code: 2026-10-22
 
 Current behavior is defined by [08-server-multiplayer.md](08-server-multiplayer.md), which supersedes local-only persistence and authentication requirements below.
+
+Navigation and page layouts are defined by [09-ui-navigation.md](09-ui-navigation.md).
 
 Previous baseline:
 
@@ -28,5 +30,6 @@ Reading order (read specification 08 first for server/auth/room behavior):
 6. `specs/06-keyboard-shortcuts-nuxt-ui.md`
 7. `specs/07-recent-players-and-lifetime-stats.md`
 8. `specs/08-server-multiplayer.md`
+9. `specs/09-ui-navigation.md`
 
 Use these docs as source-of-truth for current behavior plus targeted follow-up work.

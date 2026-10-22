@@ -1,4 +1,4 @@
-import { createPage, setup, url } from '@nuxt/test-utils/e2e'
+import { createPage, getBrowser, setup, url } from '@nuxt/test-utils/e2e'
 import type { NuxtPage } from '@nuxt/test-utils/e2e'
 import { afterAll, afterEach, describe, expect, it } from 'vitest'
 import { fileURLToPath } from 'node:url'
@@ -31,6 +31,75 @@ describe('local matches', { timeout: 60_000 }, async () => {
     await page?.context().close()
   })
   afterAll(cleanupDatabase)
+
+  it('renders signed-in home on the server and keeps that state through hydration', async () => {
+    const user = await testUser('Home player')
+    const context = await (await getBrowser()).newContext()
+    await context.addCookies([user.cookie])
+    const target = await context.newPage()
+    try {
+      const response = await target.request.get(url('/'))
+      const html = await response.text()
+      expect(response.status()).toBe(200)
+      expect(html).toContain('Let’s play')
+      expect(html).not.toContain('Your next game starts here.')
+      await target.addInitScript(() => {
+        const flashes: string[] = []
+        Object.assign(window, { signedOutFlashes: flashes })
+        new MutationObserver(() => {
+          if (document.querySelector('h1')?.textContent === 'Your next game starts here.') flashes.push('signed-out')
+        }).observe(document, { childList: true, subtree: true })
+      })
+      await target.goto(url('/'), { waitUntil: 'networkidle' })
+      await target.getByRole('heading', { name: 'Let’s play', exact: true }).waitFor()
+      expect(await target.evaluate(() => Reflect.get(window, 'signedOutFlashes'))).toEqual([])
+      await target.getByRole('link', { name: 'History', exact: true }).click()
+      await target.getByRole('link', { name: 'Play', exact: true }).click()
+      await target.getByRole('heading', { name: 'Let’s play', exact: true }).waitFor()
+      expect(await target.evaluate(() => Reflect.get(window, 'signedOutFlashes'))).toEqual([])
+      const otherTab = await context.newPage()
+      await otherTab.goto(url('/'), { waitUntil: 'networkidle' })
+      await otherTab.getByRole('heading', { name: 'Let’s play', exact: true }).waitFor()
+      await target.getByRole('button', { name: 'Sign out', exact: true }).click()
+      await target.waitForURL('**/signin')
+      await otherTab.getByRole('heading', { name: 'Your next game starts here.', exact: true }).waitFor()
+      await target.goto(url('/'), { waitUntil: 'networkidle' })
+      await target.getByRole('heading', { name: 'Your next game starts here.', exact: true }).waitFor()
+      expect(await target.getByRole('heading', { name: 'Let’s play', exact: true }).count()).toBe(0)
+    } finally { await context.close() }
+  })
+
+  it('manages players with dialogs and protects the account player from removal', async () => {
+    page = (await authenticatedPage('Player manager')).page
+    const hydrationWarnings: string[] = []
+    page.on('console', message => { if (/hydration/i.test(message.text())) hydrationWarnings.push(message.text()) })
+    await page.goto(url('/players'), { waitUntil: 'hydration' })
+    expect(hydrationWarnings).toEqual([])
+    await page.getByRole('button', { name: 'Add player', exact: true }).click()
+    let dialog = page.getByRole('dialog')
+    await dialog.getByRole('textbox', { name: /^Name/ }).fill('New guest')
+    await dialog.getByLabel('Player color', { exact: true }).fill('#123456')
+    await dialog.getByRole('button', { name: 'Add player', exact: true }).click()
+    await dialog.waitFor({ state: 'hidden' })
+    await page.getByRole('button', { name: 'Options for New guest', exact: true }).filter({ visible: true }).click()
+    await page.getByRole('menuitem', { name: 'Edit player', exact: true }).click()
+    dialog = page.getByRole('dialog')
+    expect(await dialog.getByLabel('Player color', { exact: true }).inputValue()).toBe('#123456')
+    await dialog.getByRole('textbox', { name: /^Name/ }).fill('Renamed guest')
+    await dialog.getByLabel('Player color', { exact: true }).fill('#abcdef')
+    await dialog.getByRole('button', { name: 'Save player', exact: true }).click()
+    await dialog.waitFor({ state: 'hidden' })
+    await page.getByRole('button', { name: 'Options for Renamed guest', exact: true }).filter({ visible: true }).click()
+    await page.getByRole('menuitem', { name: 'Remove player', exact: true }).click()
+    dialog = page.getByRole('dialog')
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
+    await page.getByRole('button', { name: 'Options for Renamed guest', exact: true }).filter({ visible: true }).click()
+    await page.getByRole('menuitem', { name: 'Remove player', exact: true }).click()
+    await page.getByRole('dialog').getByRole('button', { name: 'Remove player', exact: true }).click()
+    await expect.poll(() => page.getByRole('button', { name: 'Options for Renamed guest', exact: true }).count()).toBe(0)
+    await page.getByRole('button', { name: 'Options for Player manager', exact: true }).filter({ visible: true }).click()
+    expect(await page.getByRole('menuitem', { name: 'Remove player', exact: true }).count()).toBe(0)
+  })
 
   it('renders both real Vue templates and sends HTML/text with subjects through the test Resend transport', async () => {
     const response = await fetch(url('/__test__/emails'))
@@ -361,7 +430,13 @@ describe('local matches', { timeout: 60_000 }, async () => {
     await page.waitForURL('**/history')
     await page.goto(url('/history'), { waitUntil: 'hydration' })
     await expect.poll(() => page.getByText(`${winner} won`, { exact: true }).count()).toBe(1)
-    expect(await page.getByText('No matches saved yet', { exact: true }).count()).toBe(0)
+    await page.locator('summary').click()
+    await page.setViewportSize({ width: 390, height: 844 })
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    await page.getByRole('button', { name: `Options for ${winner}’s match`, exact: true }).click()
+    await page.getByRole('menuitem', { name: 'Hide from my history', exact: true }).click()
+    await page.getByRole('dialog').getByRole('button', { name: 'Hide from my history', exact: true }).click()
+    await page.getByRole('heading', { name: 'Your first result is waiting', exact: true }).waitFor()
   })
 
   it('synchronizes accounts and guests live, enforces controllers, reconnects, and admits late spectators', async () => {
@@ -433,18 +508,66 @@ describe('local matches', { timeout: 60_000 }, async () => {
     } finally { await bob.page.context().close(); await spectator.page.context().close() }
   })
 
+  it('finds and resolves the active room after deleting and recreating a guest', async () => {
+    await startMatch()
+    const matchId = new URL(page.url()).pathname.split('/').at(-1)!
+    const original = await (await page.request.get(url(`/api/matches/${matchId}`))).json() as RoomView
+    const oldGuest = original.match!.players.find(player => player.name === 'Bob')!
+    async function post<T>(path: string, data: object) {
+      const response = await page.request.post(url(path), { data, headers: { Origin: new URL(url('/')).origin } })
+      expect(response.status(), await response.text()).toBe(200)
+      return await response.json() as T
+    }
+    await post('/api/players', { type: 'remove', id: oldGuest.id })
+    const recreated = await post<{ selected: Array<{ id: string }> }>('/api/players', { type: 'ensure', players: [{ name: 'Bob', color: '#38bdf8' }] })
+    expect(recreated.selected[0]!.id).not.toBe(oldGuest.id)
+    const next = await post<RoomView>('/api/rooms', {})
+    await page.goto(url(`/room/${next.id}`), { waitUntil: 'hydration' })
+    await page.getByText(`You’re playing in room ${original.code}`, { exact: true }).waitFor()
+    expect(await page.getByRole('link', { name: 'Resume current match', exact: true }).getAttribute('href')).toBe(`/match/${matchId}`)
+    expect(await page.getByRole('button', { name: 'Start match', exact: true }).isDisabled()).toBe(true)
+    await page.getByRole('link', { name: 'Back to Play', exact: true }).click()
+    expect(await page.getByRole('link', { name: 'Resume match', exact: true }).getAttribute('href')).toBe(`/match/${matchId}`)
+    const activeRoomLink = page.getByRole('link', { name: `${original.code} Playing`, exact: true })
+    await activeRoomLink.waitFor()
+    const activeRoomCard = activeRoomLink.locator('..')
+    expect(await activeRoomCard.getByRole('link', { name: 'Open match', exact: true }).getAttribute('href')).toBe(`/match/${matchId}`)
+    await page.getByRole('link', { name: 'New match', exact: true }).click()
+    expect(await page.getByRole('link', { name: 'Resume Current Match', exact: true }).getAttribute('href')).toBe(`/match/${matchId}`)
+    expect(await page.getByRole('button', { name: 'Start Match', exact: true }).isDisabled()).toBe(true)
+    await page.goto(url(`/room/${next.id}`), { waitUntil: 'hydration' })
+    await page.getByRole('link', { name: 'Open active room', exact: true }).click()
+    await expect.poll(() => page.getByRole('button', { name: 'Room options', exact: true }).isEnabled()).toBe(true)
+    await page.getByRole('button', { name: 'Room options', exact: true }).click()
+    await page.getByRole('menuitem', { name: 'Abandon match', exact: true }).click()
+    await page.getByRole('dialog').getByRole('button', { name: 'Abandon match', exact: true }).click()
+    await page.getByRole('dialog').waitFor({ state: 'hidden' })
+    await page.goto(url(`/room/${next.id}`), { waitUntil: 'hydration' })
+    expect(await page.getByText(`You’re playing in room ${original.code}`, { exact: true }).count()).toBe(0)
+    await page.getByRole('checkbox', { name: 'Bob', exact: true }).check()
+    await page.getByRole('button', { name: 'Save roster', exact: true }).click()
+    await expect.poll(() => page.getByRole('button', { name: 'Ready', exact: true }).isEnabled()).toBe(true)
+    await page.getByRole('button', { name: 'Ready', exact: true }).click()
+    await expect.poll(() => page.getByRole('button', { name: 'Start match', exact: true }).isEnabled()).toBe(true)
+    await page.getByRole('button', { name: 'Start match', exact: true }).click()
+    await page.getByRole('link', { name: 'Open match', exact: true }).waitFor()
+  })
+
   it('creates a reusable lobby, selects guests, clears readiness on rule changes, and starts through the UI', async () => {
     page = (await authenticatedPage('Room owner')).page
     await page.goto(url('/rooms'), { waitUntil: 'hydration' })
     await page.getByRole('button', { name: 'Create room', exact: true }).click()
     await page.waitForURL(/\/room\/[^/]+$/)
     const rules = page.getByRole('region', { name: 'Match rules' })
-    await expect.poll(() => page.getByRole('button', { name: 'New invite code', exact: true }).isEnabled()).toBe(true)
+    await expect.poll(() => page.getByRole('button', { name: 'Room options', exact: true }).isEnabled()).toBe(true)
     const beforeError = await rules.boundingBox()
     await page.route('**/api/rooms/*/actions', route => route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ statusMessage: 'Could not rotate invite code' }) }))
+    await page.getByRole('button', { name: 'Room options', exact: true }).click()
+    await page.getByRole('menuitem', { name: 'New invite code', exact: true }).click()
     await page.getByRole('button', { name: 'New invite code', exact: true }).click()
     await page.getByText('Could not rotate invite code', { exact: true }).waitFor()
-    expect(await page.locator('section.grid').first().getByText('Could not rotate invite code', { exact: true }).count()).toBe(0)
+    expect(await page.locator('section.page-stack').first().getByText('Could not rotate invite code', { exact: true }).count()).toBe(0)
+    await page.getByRole('button', { name: 'Cancel', exact: true }).click()
     expect((await rules.boundingBox())?.y).toBe(beforeError?.y)
     await page.unroute('**/api/rooms/*/actions')
     await page.getByPlaceholder('Guest name', { exact: true }).fill('Room guest')

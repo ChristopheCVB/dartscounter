@@ -1,28 +1,21 @@
 <template>
-  <section class="grid gap-4">
-    <UPageHeader
-      title="New Match"
-      description="Pick your game mode, configure the rules, and start scoring."
-      headline="Match Setup"
-      class="arcade-reveal"
-    />
+  <section class="page-stack">
+    <header class="page-heading"><h1>New match</h1><p>Choose your players and rules, then start scoring.</p></header>
 
-    <UCard v-if="activeMatchId" class="arcade-glow arcade-reveal" :style="{ '--reveal-delay': '80ms' }">
-      <template #header>
-        <h2 class="m-0 arcade-title text-base">Active Match Found</h2>
-      </template>
-      <div class="grid gap-4">
-        <p class="m-0 text-muted">Finish or abandon your active match before starting another.</p>
-        <div class="flex flex-wrap gap-2.5">
-          <UButton :to="`/match/${activeMatchId}`" color="neutral" variant="soft">Resume Current Match</UButton>
-          <UButton v-if="matchStore.room?.ownerId === account.userId" color="error" @click="discardCurrentMatch">Discard and Start Fresh</UButton>
-        </div>
+    <div v-if="activeMatchId" class="grid gap-4 rounded-xl border border-default p-5">
+      <div class="section-heading"><h2>You have a match in progress</h2><p>Finish or abandon your match in room {{ account.activeRoom?.code }} before starting another.</p></div>
+      <div class="flex flex-wrap gap-3">
+        <UButton :to="`/match/${activeMatchId}`">Resume Current Match</UButton>
+        <UDropdownMenu v-if="account.activeRoom?.ownerId === account.userId" :items="[{ label: 'Abandon match', color: 'error', onSelect: () => { confirmAbandon = true } }]"><UButton icon="i-lucide-ellipsis" aria-label="Match options" color="neutral" variant="ghost" /></UDropdownMenu>
       </div>
-    </UCard>
+    </div>
+    <UModal v-model:open="confirmAbandon" class="app-shell" :dismissible="!matchStore.pending" :close="!matchStore.pending" title="Abandon this match?" description="This match will end without a winner or completed statistics.">
+      <template #footer><UButton color="neutral" variant="soft" :disabled="matchStore.pending" @click="confirmAbandon = false">Cancel</UButton><UButton color="error" :loading="matchStore.pending" @click="discardCurrentMatch">Abandon match</UButton></template>
+    </UModal>
 
     <UAlert v-if="matchStore.error" color="error" :title="matchStore.error" />
     <UButton v-if="matchStore.uncertain" @click="matchStore.retryUncertain">Resolve pending action</UButton>
-    <fieldset :disabled="busy || !!activeMatchId || !account.loaded"><MatchConfigForm class="arcade-reveal" style="--reveal-delay: 140ms;" @submit="onSubmit" /></fieldset>
+    <fieldset :disabled="busy || !!activeMatchId || !account.loaded"><MatchConfigForm @submit="onSubmit" /></fieldset>
   </section>
 </template>
 
@@ -41,16 +34,17 @@ const playersStore = usePlayersStore()
 const settingsStore = useSettingsStore()
 const account = useAccountStore()
 const busy = ref(false)
+const confirmAbandon = ref(false)
 onMounted(async () => {
   await account.load()
-  if (matchStore.room && activeMatchId.value) await matchStore.connect(matchStore.room.id)
+  if (account.activeRoom) await matchStore.connect(account.activeRoom.id)
 })
 onBeforeUnmount(() => matchStore.disconnect())
 
-const activeMatchId = computed(() => matchStore.activeMatch?.status === 'in_progress' ? matchStore.activeMatch.id : '')
+const activeMatchId = computed(() => account.activeRoom?.match?.id ?? '')
 
 async function discardCurrentMatch() {
-  if (window.confirm('Discard the active match without a winner?')) await matchStore.clearMatch()
+  if (await matchStore.clearMatch()) confirmAbandon.value = false
 }
 
 async function onSubmit(payload: {

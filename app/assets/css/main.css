@@ -5,39 +5,27 @@
   --font-sans: "Barlow", "Segoe UI", sans-serif;
 }
 
-:root {
-  --arcade-bg-1: #070c16;
-  --arcade-bg-2: #111a2d;
-  --arcade-grid: rgba(255, 255, 255, 0.06);
-  --arcade-glow: color-mix(in srgb, var(--ui-primary) 35%, transparent);
+html, body, #__nuxt {
+  min-height: 100%;
+  background: var(--ui-bg);
 }
 
-body {
-  background:
-    radial-gradient(circle at 16% -4%, rgba(239, 103, 35, 0.32), transparent 38%),
-    radial-gradient(circle at 84% 10%, rgba(251, 191, 36, 0.22), transparent 32%),
-    linear-gradient(168deg, var(--arcade-bg-1), var(--arcade-bg-2));
-  background-attachment: fixed;
-}
+body { margin: 0; }
 
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  background-image:
-    linear-gradient(var(--arcade-grid) 1px, transparent 1px),
-    linear-gradient(90deg, var(--arcade-grid) 1px, transparent 1px);
-  background-size: 28px 28px;
-  mask-image: radial-gradient(circle at center, black 42%, transparent 100%);
-  opacity: 0.35;
-  z-index: -1;
-}
+.surface-card { background: var(--ui-bg-elevated); }
 
-.surface-card {
-  background: color-mix(in srgb, var(--ui-bg) 88%, transparent);
-  backdrop-filter: blur(12px);
-}
+.app-shell .page-stack { display: grid; gap: 2rem; }
+.page-heading { display: grid; gap: 0.5rem; }
+.page-heading h1 { font-size: clamp(1.75rem, 4vw, 2.25rem); font-weight: 700; letter-spacing: -0.025em; line-height: 1.2; }
+.page-heading p, .section-heading p { color: var(--ui-text-muted); }
+.section-heading { display: grid; gap: 0.35rem; }
+.section-heading h2 { font-size: 1.125rem; font-weight: 600; }
+.form-section { display: grid; align-content: start; gap: 1.5rem; }
+.form-fields { display: grid; gap: 1.25rem; }
+.color-input { width: 2.75rem; height: 2.75rem; padding: 0.4rem; border: 1px solid var(--ui-border); border-radius: 0.5rem; background: var(--ui-bg-elevated); cursor: pointer; flex-shrink: 0; }
+
+.app-shell button:not([role="checkbox"]):not([role="switch"]), .app-shell a[data-slot="base"] { min-height: 2.75rem; }
+.app-shell input:not([type="color"]):not([type="checkbox"]), .app-shell [role="combobox"] { min-height: 2.75rem; }
 
 .arcade-title {
   letter-spacing: 0.04em;
@@ -45,15 +33,7 @@ body::before {
 }
 
 .arcade-glow {
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ui-primary) 45%, transparent), 0 0 36px -18px var(--arcade-glow);
-}
-
-.arcade-hover-lift {
-  transition: transform 180ms ease, box-shadow 200ms ease, border-color 200ms ease;
-}
-
-.arcade-hover-lift:hover {
-  transform: translateY(-2px);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ui-primary) 45%, transparent), 0 0 36px -18px color-mix(in srgb, var(--ui-primary) 35%, transparent);
 }
 
 .arcade-reveal {
@@ -71,7 +51,6 @@ body::before {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .arcade-hover-lift,
   .arcade-reveal {
     animation: none !important;
     transition: none !important;

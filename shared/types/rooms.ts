@@ -1,4 +1,4 @@
-import type { AtcSettings, GameSettings, Match, MatchSummary, PlayerIdentity, X01Settings } from './darts'
+import type { AtcSettings, GameSettings, Match, MatchStatus, MatchSummary, PlayerIdentity, X01Settings } from './darts'
 
 export interface Preferences {
   settings: X01Settings
@@ -31,6 +31,8 @@ export interface RoomView {
 export interface RoomListItem {
   id: string
   code: string
+  matchId: string | null
+  matchStatus: MatchStatus | null
 }
 
 export interface AccountData extends Preferences {

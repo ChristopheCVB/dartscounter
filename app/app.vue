@@ -10,11 +10,11 @@
 <script setup lang="ts">
 import { useAccountStore } from '~/stores/account'
 
-const auth = useAuth()
-const session = auth.useSession()
+const session = useNuxtApp().$authSession
 const account = useAccountStore()
-watch(() => session.value.data?.user.id, id => {
-  if (id) void account.load()
-  else account.clear()
+watch(() => session.value?.user.id, id => {
+  if (!id) account.clear()
+  else if (import.meta.client && (!account.loaded || account.userId !== id)) void account.load()
 }, { immediate: true })
+if (import.meta.server && session.value?.user) await account.load()
 </script>

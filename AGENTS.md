@@ -12,7 +12,7 @@ Concise map of the codebase for AI agents and developers. Authoritative behavior
 ## Directory map
 
 - **app/** — Nuxt 4 app source:
-  - **pages/** — Routes: `index`, `match/new`, `match/[id]`, `history`, `settings`.
+  - **pages/** — Routes: `index` (Play), `match/new`, `match/[id]`, `room/[id]`, `players`, `history`, `settings`; `rooms` redirects to Play.
   - **components/** — Feature folders: `match/` (Scoreboard, PlayerCard, ThrowPad, InteractiveTarget, TurnTimeline), `setup/` (MatchConfigForm), `stats/` (MatchStats).
   - **composables/** — `useAuth`, `useThrowSounds`; scoring and progression live in `shared/utils/`.
   - **stores/** — Pinia: `match`, `settings`, `history`, `players`.
@@ -57,4 +57,4 @@ Concise map of the codebase for AI agents and developers. Authoritative behavior
 
 - **Behavior and scope:** Use [specs/](specs/) as source of truth (MVP, architecture, data model). Start with [specs/README.md](specs/README.md) for reading order; [specs/01-product-mvp.md](specs/01-product-mvp.md) and [specs/02-architecture-and-data-model.md](specs/02-architecture-and-data-model.md) for game behavior and structure; implementation specs (03–07) for feature-level decisions.
 - **New features:** Follow existing patterns (composables for logic, stores for app state, types in `shared/types/darts.ts`). Add or extend Vitest unit tests for scoring and match state changes.
-- **UI changes:** Prefer Nuxt UI primitives and existing layout; keep custom styles in `app/assets/css/main.css` and theme in `app.config.ts`.
+- **UI changes:** Follow [specs/09-ui-navigation.md](specs/09-ui-navigation.md) for navigation and page layouts. Prefer Nuxt UI primitives and existing layout; keep custom styles in `app/assets/css/main.css` and theme in `app.config.ts`.

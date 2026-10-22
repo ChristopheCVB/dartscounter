@@ -7,8 +7,10 @@ export const useHistoryStore = defineStore('history', () => {
     try {
       await $fetch(`/api/history/${id}`, { method: 'DELETE' })
       entries.value = entries.value.filter(entry => entry.id !== id)
+      return true
     } catch (error) {
       useToast().add({ title: 'History was not updated', description: apiError(error), color: 'error' })
+      return false
     }
   }
   return { entries, removeSummary }

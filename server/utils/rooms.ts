@@ -154,7 +154,11 @@ export async function mutateRoom(roomId: string, userId: string, requestId: stri
         return fail(409, 'A player profile changed. Reload and save the affected roster again.')
       }
       const busy = await db.query('SELECT user_id FROM participants WHERE active AND user_id=ANY($1::text[])', [users])
-      if (busy.rowCount) return fail(409, 'A selected account is already playing in another room')
+      if (busy.rowCount) {
+        const busyUsers = new Set(busy.rows.map(row => row.user_id))
+        const names = selected.filter(member => busyUsers.has(member.userId)).map(member => member.name)
+        return fail(409, `${names.join(', ')} ${names.length === 1 ? 'is' : 'are'} already playing in another room. Finish or abandon that match first.`)
+      }
       const controllers = Object.fromEntries(selected.flatMap(m => m.roster.map(p => [p.id, m.userId])))
       const match = engine.createMatch(view.settings, shuffled(seeds))
       if (row) await db.query('UPDATE matches SET locked=true, undo=\'[]\'::jsonb WHERE id=$1', [row.id])
