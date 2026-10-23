@@ -1,6 +1,6 @@
 <template>
   <section v-if="session?.user" class="page-stack">
-    <header class="page-heading"><h1>Let’s play</h1><p>A quick game on one device or a room with friends.</p></header>
+    <header class="page-heading"><h1>Let’s play</h1><p>Create or join a room. Share one screen or play from your own devices.</p></header>
     <UAlert v-if="error || account.error" color="error" :title="error || account.error" />
     <section v-if="account.currentRoom" class="form-section rounded-xl border border-primary/40 bg-primary/5 p-5">
       <div class="section-heading"><h2>Current room</h2><p>{{ roomStatus }} · Invite code <span class="font-mono font-semibold tracking-widest">{{ account.currentRoom.code }}</span></p></div>
@@ -20,19 +20,18 @@
     </section>
     <div class="grid gap-8 lg:grid-cols-2 lg:gap-12">
       <section class="form-section">
-        <div class="section-heading"><h2>Play on this device</h2><p>Pass the screen between players. Only you need an account.</p></div>
-        <div><UButton to="/match/new" icon="i-lucide-plus" :disabled="pending || !!account.currentRoom">New match</UButton></div>
+        <div class="section-heading"><h2>Create a room</h2><p>Choose players and rules in the lobby. Guests sharing your screen don’t need an account.</p></div>
+        <div><UButton icon="i-lucide-plus" :loading="pending" :disabled="!!account.currentRoom" @click="create">Create room</UButton></div>
       </section>
       <section class="form-section border-t border-default pt-8 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-12">
-        <div class="section-heading"><h2>Play with friends</h2><p>Share a room and score from your own devices.</p></div>
-        <div><UButton color="neutral" variant="soft" :loading="pending" :disabled="!!account.currentRoom" @click="create">Create room</UButton></div>
+        <div class="section-heading"><h2>Join a room</h2><p>Enter an invite code to play with friends or watch their match.</p></div>
         <form class="flex items-end gap-3" @submit.prevent="join">
           <UFormField label="Room code" class="min-w-0 flex-1"><UInput v-model="code" class="w-full" maxlength="8" minlength="8" placeholder="ABCDEFGH" autocomplete="off" autocapitalize="characters" required /></UFormField>
           <UButton type="submit" color="neutral" variant="outline" :loading="pending" :disabled="!!account.currentRoom">Join room</UButton>
         </form>
       </section>
     </div>
-    <p class="text-sm text-muted">{{ account.currentRoom ? 'Leave your current room before creating or joining another.' : 'Rooms last while you play together. Everyone can join by code, including during a one-device match.' }}</p>
+    <p class="text-sm text-muted">{{ account.currentRoom ? 'Leave your current room before creating or joining another.' : 'Rooms last while you play together. Choose your players and rules, mark Ready, then the owner starts the match.' }}</p>
   </section>
   <section v-else class="mx-auto grid max-w-2xl gap-6 py-8 sm:py-16">
     <img src="/logo.svg" alt="" class="size-14" width="56" height="56">

@@ -16,13 +16,9 @@ export const usePlayersStore = defineStore('players', () => {
       return null
     }
   }
-  async function ensureMany(seeds: Array<{ name: string, color?: string }>) {
-    const result = await mutate({ type: 'ensure', players: seeds.map((p, i) => ({ name: p.name.trim(), color: normalizePlayerColor(p.color, i) })) })
-    return result?.selected ?? []
-  }
   const addRecentPlayer = (name: string, color?: string) => mutate({ type: 'ensure', players: [{ name, color: normalizePlayerColor(color) }] })
   const updateRecentPlayer = (id: string, player: Pick<PlayerIdentity, 'name' | 'color'>) => mutate({ type: 'update', id, ...player })
   const removeRecentPlayer = (id: string) => mutate({ type: 'remove', id })
   const clearRecentPlayers = () => mutate({ type: 'clear' })
-  return { recentPlayers, recentNames, ensureMany, addRecentPlayer, updateRecentPlayer, removeRecentPlayer, clearRecentPlayers }
+  return { recentPlayers, recentNames, addRecentPlayer, updateRecentPlayer, removeRecentPlayer, clearRecentPlayers }
 })

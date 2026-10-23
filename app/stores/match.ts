@@ -1,5 +1,5 @@
 import { useAccountStore } from '~/stores/account'
-import type { DartInput, GameSettings, Multiplier, Segment } from '~~/shared/types/darts'
+import type { DartInput, Multiplier, Segment } from '~~/shared/types/darts'
 import type { RoomView } from '~~/shared/types/rooms'
 import type { RoomAction } from '~~/shared/utils/validation'
 import { parsePointsToDart } from '~~/shared/utils/scoringEngine'
@@ -163,17 +163,6 @@ export const useMatchStore = defineStore('match', () => {
     if (pending.value || uncertain.value) return false
     return send({ roomId: target.id, requestId: crypto.randomUUID(), expectedRevision: target.revision, action: { type: 'leave' } })
   }
-  async function startMatch(settings: GameSettings, players: Array<{ id: string, name: string, color: string }>) {
-    try {
-      const created = await $fetch<RoomView>('/api/rooms', { method: 'POST', body: { settings } })
-      acceptRoom(created)
-      for (const action of [{ type: 'roster', playerIds: players.map(p => p.id) }, { type: 'ready', ready: true }, { type: 'start' }] as RoomAction[]) {
-        const request = { roomId: created.id, requestId: crypto.randomUUID(), expectedRevision: room.value!.revision, action }
-        if (!await send(request)) return false
-      }
-      return true
-    } catch (cause) { error.value = apiError(cause); return false }
-  }
   function setMultiplier(value: Multiplier) { selectedMultiplier.value = value }
   function appendNumericDigit(digit: string) {
     if (/^\d$/.test(digit)) numericBuffer.value = useMatchState().setNumericInput(numericBuffer.value, digit)
@@ -192,5 +181,5 @@ export const useMatchStore = defineStore('match', () => {
   }
   async function undoLastDart() { if (canUndo.value) return act({ type: 'undo' }) }
   async function clearMatch() { return act({ type: 'abandon' }) }
-  return { room, activeMatch, currentPlayer, selectedMultiplier, numericBuffer, transitionLocked, connected, pending, error, uncertain, canScore, canUndo, acceptRoom, connect, disconnect, reset, refresh, act, retryUncertain, leaveRoom, startMatch, setMultiplier, appendNumericDigit, popNumericDigit, clearNumericBuffer, addDart, addSegment, addMiss, addBull, submitNumericThrow, undoLastDart, clearMatch }
+  return { room, activeMatch, currentPlayer, selectedMultiplier, numericBuffer, transitionLocked, connected, pending, error, uncertain, canScore, canUndo, acceptRoom, connect, disconnect, reset, refresh, act, retryUncertain, leaveRoom, setMultiplier, appendNumericDigit, popNumericDigit, clearNumericBuffer, addDart, addSegment, addMiss, addBull, submitNumericThrow, undoLastDart, clearMatch }
 })

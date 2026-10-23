@@ -1,7 +1,7 @@
 <template>
   <section class="page-stack">
     <header class="page-heading"><h1>History</h1><p>Every finished match, ready for another look.</p></header>
-    <UEmpty v-if="!historyStore.entries.length" title="Your first result is waiting" description="Finish a match to see its results and player statistics here." icon="i-lucide-history" :actions="[{ label: 'New match', to: '/match/new' }]" />
+    <UEmpty v-if="!historyStore.entries.length" title="Your first result is waiting" description="Finish a match to see its results and player statistics here." icon="i-lucide-history" :actions="[{ label: 'Go to Play', to: '/' }]" />
     <div class="divide-y divide-default">
       <article v-for="entry in historyStore.entries" :key="entry.id" class="grid gap-4 py-6 first:pt-0">
         <div class="flex items-start justify-between gap-4">

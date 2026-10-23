@@ -187,24 +187,52 @@ describe('local matches', { timeout: 60_000 }, async () => {
     return { page: target, user }
   }
 
-  async function startMatch(mode: 'x01' | 'atc' = 'x01') {
-    page = (await authenticatedPage('Local scorer')).page
-    await page.goto(url('/match/new'), { waitUntil: 'hydration' })
-    await page.getByPlaceholder('Player 1', { exact: true }).fill('Alice')
-    await page.getByPlaceholder('Player 2', { exact: true }).fill('Bob')
+  async function startLobbyMatch(mode: 'x01' | 'atc' = 'x01') {
+    await page.goto(url('/'), { waitUntil: 'hydration' })
+    await page.getByRole('button', { name: 'Create room', exact: true }).click()
+    await page.waitForURL(/\/room\/[^/]+$/)
+    await expect.poll(() => page.getByRole('button', { name: 'Add guest', exact: true }).isEnabled()).toBe(true)
+    await page.getByPlaceholder('Guest name', { exact: true }).fill('Bob')
+    await page.getByRole('button', { name: 'Add guest', exact: true }).click()
+    await expect.poll(() => page.getByRole('button', { name: 'Ready', exact: true }).isEnabled()).toBe(true)
     if (mode === 'atc') {
-      await page.getByRole('button', { name: 'Around the Clock', exact: true }).click()
+      await page.getByRole('combobox', { name: 'Game mode', exact: true }).click()
+      await page.getByRole('option', { name: 'Around the Clock', exact: true }).click()
+      await page.getByRole('button', { name: 'Save rules', exact: true }).click()
+      await expect.poll(() => page.getByRole('region', { name: 'Match rules' }).textContent()).toContain('Around the Clock')
     }
-    await page.getByRole('button', { name: 'Start Match', exact: true }).click()
+    await page.getByRole('button', { name: 'Ready', exact: true }).click()
+    await expect.poll(() => page.getByRole('button', { name: 'Start match', exact: true }).isEnabled()).toBe(true)
+    await page.getByRole('button', { name: 'Start match', exact: true }).click()
     await page.waitForURL(/\/match\/(?!new)[^/]+$/)
     await page.getByRole('heading', { name: 'Throw Pad', exact: true }).waitFor()
   }
+
+  async function startMatch(mode: 'x01' | 'atc' = 'x01') {
+    page = (await authenticatedPage('Alice')).page
+    await startLobbyMatch(mode)
+  }
+
+  it('redirects old setup links to Play and routes empty history through the lobby flow', async () => {
+    page = (await authenticatedPage('Lobby player')).page
+    await page.goto(url('/match/new'), { waitUntil: 'hydration' })
+    expect(new URL(page.url()).pathname).toBe('/')
+    expect(await page.getByRole('link', { name: 'New match', exact: true }).count()).toBe(0)
+    expect(await page.getByRole('button', { name: 'Create room', exact: true }).count()).toBe(1)
+    expect(await page.getByRole('button', { name: 'Join room', exact: true }).count()).toBe(1)
+    await page.goto(url('/history'), { waitUntil: 'hydration' })
+    await page.getByRole('link', { name: 'Go to Play', exact: true }).click()
+    await page.waitForURL(url('/'))
+    await page.getByRole('button', { name: 'Create room', exact: true }).click()
+    await page.waitForURL(/\/room\/[^/]+$/)
+    expect(await page.getByRole('button', { name: 'Start match', exact: true }).isDisabled()).toBe(true)
+  })
 
   const activePlayer = (target = page) => target.getByRole('article').and(target.locator('[aria-current="true"]'))
   const activeScore = (target = page) => activePlayer(target).locator('p.font-extrabold')
   const scores = (target = page) => target.getByRole('article').locator('p.font-extrabold')
 
-  it.each(['x01', 'atc'] as const)('applies saved rules to rooms and setup without overwriting defaults for a %s match', async mode => {
+  it.each(['x01', 'atc'] as const)('applies saved rules to rooms without overwriting defaults for a %s match', async mode => {
     page = (await authenticatedPage('Saved rules')).page
     const preferences = { ...defaultPreferences, settings: { mode: 'x01' as const, startScore: 301 as const, doubleIn: true, doubleOut: false, legsTarget: 3 }, atcSettings: { mode: 'atc' as const, fastForward: true } }
     const saved = await page.request.put(url('/api/preferences'), { data: preferences, headers: { Origin: new URL(url('/')).origin } })
@@ -215,22 +243,25 @@ describe('local matches', { timeout: 60_000 }, async () => {
     const roomId = new URL(page.url()).pathname.split('/').at(-1)!
     const room = await (await page.request.get(url(`/api/rooms/${roomId}`))).json() as RoomView
     expect(room.settings).toEqual(preferences.settings)
-    await page.getByRole('button', { name: 'Leave room', exact: true }).click()
-    await page.getByRole('dialog').getByRole('button', { name: 'Leave room', exact: true }).click()
-    await page.waitForURL(url('/'))
-    await page.getByRole('link', { name: 'New match', exact: true }).click()
     await expect.poll(() => page.getByRole('checkbox', { name: 'Double in', exact: true }).isChecked()).toBe(true)
     expect(await page.getByRole('checkbox', { name: 'Double out', exact: true }).isChecked()).toBe(false)
     expect(await page.getByRole('combobox', { name: 'Start score', exact: true }).textContent()).toContain('301')
     expect(await page.getByRole('spinbutton', { name: 'Legs to win', exact: true }).inputValue()).toBe('3')
-    await page.getByPlaceholder('Player 2', { exact: true }).fill('Guest')
+    await page.getByPlaceholder('Guest name', { exact: true }).fill('Guest')
+    await page.getByRole('button', { name: 'Add guest', exact: true }).click()
+    await expect.poll(() => page.getByRole('button', { name: 'Ready', exact: true }).isEnabled()).toBe(true)
     if (mode === 'x01') await page.getByRole('checkbox', { name: 'Double out', exact: true }).check()
     else {
-      await page.getByRole('button', { name: 'Around the Clock', exact: true }).click()
-      expect(await page.getByRole('checkbox', { name: 'Fast Forward', exact: true }).isChecked()).toBe(true)
+      await page.getByRole('combobox', { name: 'Game mode', exact: true }).click()
+      await page.getByRole('option', { name: 'Around the Clock', exact: true }).click()
+      await page.getByRole('checkbox', { name: 'Fast Forward', exact: true }).check()
       await page.getByRole('checkbox', { name: 'Fast Forward', exact: true }).uncheck()
     }
-    await page.getByRole('button', { name: 'Start Match', exact: true }).click()
+    await page.getByRole('button', { name: 'Save rules', exact: true }).click()
+    await expect.poll(() => page.getByRole('button', { name: 'Ready', exact: true }).isEnabled()).toBe(true)
+    await page.getByRole('button', { name: 'Ready', exact: true }).click()
+    await expect.poll(() => page.getByRole('button', { name: 'Start match', exact: true }).isEnabled()).toBe(true)
+    await page.getByRole('button', { name: 'Start match', exact: true }).click()
     await page.waitForURL(/\/match\/(?!new)[^/]+$/)
     const account = await (await page.request.get(url('/api/account'))).json() as AccountData
     expect(account.settings).toEqual(preferences.settings)
@@ -275,7 +306,7 @@ describe('local matches', { timeout: 60_000 }, async () => {
   }
 
   it('announces completed turns once, shows averages, and saves this browser’s voice', async () => {
-    page = (await authenticatedPage('Score announcements')).page
+    page = (await authenticatedPage('AlexandertheGreatPlayer')).page
     await page.addInitScript(() => {
       const calls: Array<{ text: string, lang: string, voice: string | null }> = []
       Object.assign(window, { scoreSpeechCalls: calls })
@@ -294,12 +325,7 @@ describe('local matches', { timeout: 60_000 }, async () => {
       }) })
     })
     const calls = () => page.evaluate(() => Reflect.get(window, 'scoreSpeechCalls') as Array<{ text: string, lang: string, voice: string | null }>)
-    await page.goto(url('/match/new'), { waitUntil: 'hydration' })
-    await page.getByPlaceholder('Player 1', { exact: true }).fill('AlexandertheGreatPlayer')
-    await page.getByPlaceholder('Player 2', { exact: true }).fill('Bob')
-    await page.getByRole('button', { name: 'Start Match', exact: true }).click()
-    await page.waitForURL(/\/match\/(?!new)[^/]+$/)
-    await page.getByRole('heading', { name: 'Throw Pad', exact: true }).waitFor()
+    await startLobbyMatch()
     for (let dart = 0; dart < 2; dart++) await throwDart(20)
     expect(await calls()).toEqual([])
     await throwDart(20)
@@ -661,8 +687,10 @@ describe('local matches', { timeout: 60_000 }, async () => {
     expect(await page.getByRole('link', { name: 'Open match', exact: true }).getAttribute('href')).toBe(`/match/${matchId}`)
     expect(await page.getByRole('link', { name: 'Return to room', exact: true }).getAttribute('href')).toBe(`/room/${original.id}`)
     await page.goto(url('/match/new'), { waitUntil: 'hydration' })
-    await page.getByRole('heading', { name: 'You’re already in a room', exact: true }).waitFor()
-    expect(await page.getByRole('button', { name: 'Start Match', exact: true }).isDisabled()).toBe(true)
+    expect(new URL(page.url()).pathname).toBe('/')
+    await page.getByRole('heading', { name: 'Current room', exact: true }).waitFor()
+    expect(await page.getByRole('button', { name: 'Create room', exact: true }).isDisabled()).toBe(true)
+    expect(await page.getByRole('button', { name: 'Join room', exact: true }).isDisabled()).toBe(true)
     await page.getByRole('button', { name: 'Leave room', exact: true }).click()
     let dialog = page.getByRole('dialog')
     expect(await dialog.textContent()).toContain('Leaving ends this unfinished match without a winner for everyone.')

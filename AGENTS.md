@@ -13,8 +13,8 @@ Concise map of the codebase for AI agents and developers. Authoritative behavior
 ## Directory map
 
 - **app/** — Nuxt 4 app source:
-  - **pages/** — Routes: `index` (Play), `match/new`, `match/[id]`, `room/[id]`, `players`, `history`, `settings`; `rooms` redirects to Play.
-  - **components/** — Feature folders: `match/` (Scoreboard, PlayerCard, ThrowPad, InteractiveTarget, TurnTimeline), `setup/` (MatchConfigForm), `stats/` (MatchStats).
+  - **pages/** — Routes: `index` (Play), `match/[id]`, `room/[id]`, `players`, `history`, `settings`; `rooms` and legacy `match/new` redirect to Play; all match setup uses the room lobby.
+  - **components/** — Feature folders: `match/` (Scoreboard, PlayerCard, ThrowPad, InteractiveTarget, TurnTimeline), `stats/` (MatchStats).
   - **composables/** — `useAuth`, `useThrowSounds`; scoring and progression live in `shared/utils/`.
   - **stores/** — Pinia: `match`, `settings`, `history`, `players`.
   - **layouts/default.vue** — App shell (UHeader, UMain, UContainer, nav).
@@ -22,7 +22,7 @@ Concise map of the codebase for AI agents and developers. Authoritative behavior
 - **shared/** — Non-Nuxt shared code:
   - **types/darts.ts** — Single source of truth for X01 types: `Multiplier`, `Segment`, `MatchStatus`, `DartInput`, `ThrowEvent`, `DartApplyResult`, `X01Settings`, `PlayerIdentity`, `Player`, `PlayerStats`, `MatchPlayer`, `Match`, `PlayerSummary`, `MatchSummary`.
 - **specs/** — Product and implementation specs (MVP, architecture, data model, feature implementation notes). See [specs/README.md](specs/README.md) for reading order.
-- **tests/** — Vitest projects `unit/`, `nuxt/`, `integration/`, and `e2e/`; paths within each project mirror the source tree (e.g. `unit/shared/utils/scoringEngine.test.ts`, `nuxt/app/components/setup/MatchConfigForm.test.ts`, `e2e/app/pages/match/[id].test.ts`). All test files are included in `bun run typecheck`.
+- **tests/** — Vitest projects `unit/`, `nuxt/`, `integration/`, and `e2e/`; paths within each project mirror the source tree (e.g. `unit/shared/utils/scoringEngine.test.ts`, `nuxt/app/components/match/Scoreboard.test.ts`, `e2e/app/pages/match/[id].test.ts`). All test files are included in `bun run typecheck`.
 - **Config:** [nuxt.config.ts](nuxt.config.ts) — modules `@nuxt/ui`, `@pinia/nuxt`, `@vueuse/nuxt`; Pinia `storesDirs: ['app/stores/**']`; CSS from `~/assets/css/main.css`.
 - **Runtime:** Bun is pinned in `mise.toml`; `bunfig.toml` sets `run.bun = true` so `bun run` executes package scripts and child commands with Bun.
 
