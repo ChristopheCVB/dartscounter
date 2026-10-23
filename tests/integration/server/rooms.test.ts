@@ -4,6 +4,7 @@ import { createRoom, ensureSelf, joinRoom, leaveRoom, loadRoom, mutateRoom, read
 import { getPool } from '../../../server/db/db'
 import { ensurePlayers, readAccount } from '../../../server/utils/account'
 import type { RoomView } from '../../../shared/types/rooms'
+import { defaultPreferences } from '../../../shared/types/rooms'
 import type { RoomAction } from '../../../shared/utils/validation'
 import { roomActionSchema } from '../../../shared/utils/validation'
 import { getAtcTargetSegment } from '../../../shared/utils/atcEngine'
@@ -29,6 +30,27 @@ async function started(mode: 'x01' | 'atc' = 'x01') {
 }
 
 describe('server-authoritative rooms', () => {
+  it('uses every saved X01 default when creating a room without explicit rules', async () => {
+    const owner = await testUser('Saved defaults')
+    const preferences = { ...defaultPreferences, settings: { mode: 'x01' as const, startScore: 301 as const, doubleIn: true, doubleOut: false, legsTarget: 3 } }
+    await testPool.query('INSERT INTO preferences (user_id,data) VALUES ($1,$2)', [owner.id, JSON.stringify(preferences)])
+    const room = await createRoom(owner)
+    expect(room.settings).toEqual(preferences.settings)
+    expect((await readAccount(owner)).settings).toEqual(preferences.settings)
+  })
+
+  it.each(['x01', 'atc'] as const)('keeps saved defaults when creating a room with explicit %s rules', async mode => {
+    const owner = await testUser('Explicit rules')
+    await testPool.query('INSERT INTO preferences (user_id,data) VALUES ($1,$2)', [owner.id, JSON.stringify(defaultPreferences)])
+    const settings = mode === 'x01'
+      ? { mode, startScore: 301 as const, doubleIn: true, doubleOut: false, legsTarget: 3 }
+      : { mode, fastForward: true }
+    expect((await createRoom(owner, settings)).settings).toEqual(settings)
+    const account = await readAccount(owner)
+    expect(account.settings).toEqual(defaultPreferences.settings)
+    expect(account.atcSettings).toEqual(defaultPreferences.atcSettings)
+  })
+
   it('repairs stale lobby rosters, clears all readiness, and allows a fresh guest with the same name', async () => {
     const owner = await testUser('Owner')
     const other = await testUser('Other')

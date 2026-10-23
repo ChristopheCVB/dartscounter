@@ -12,10 +12,17 @@ let voices: SpeechSynthesisVoice[]
 let wrapper: VueWrapper
 let speech: ReturnType<typeof useScoreSpeech>
 const spoken: Array<{ text: string, lang: string, voice: SpeechSynthesisVoice | null }> = []
+const utterances: SpeechSynthesisUtterance[] = []
 const synth = Object.assign(new EventTarget(), {
   getVoices: () => voices,
-  cancel: vi.fn(), resume: vi.fn(), pause: vi.fn(),
-  speak: vi.fn((utterance: SpeechSynthesisUtterance) => { spoken.push({ text: utterance.text, lang: utterance.lang, voice: utterance.voice }) })
+  paused: false,
+  cancel: vi.fn(),
+  resume: vi.fn(() => { synth.paused = false }),
+  pause: vi.fn(() => { synth.paused = true }),
+  speak: vi.fn((utterance: SpeechSynthesisUtterance) => {
+    utterances.push(utterance)
+    spoken.push({ text: utterance.text, lang: utterance.lang, voice: utterance.voice })
+  })
 })
 
 async function mountSpeech() {
@@ -26,6 +33,8 @@ beforeEach(() => {
   voiceURI.value = 'fr-voice'
   voices = [french, english]
   spoken.length = 0
+  utterances.length = 0
+  synth.paused = false
   vi.clearAllMocks()
   vi.stubGlobal('speechSynthesis', synth)
   vi.stubGlobal('SpeechSynthesisUtterance', class { constructor(public text: string) {} })
@@ -38,8 +47,40 @@ describe('native score speech', () => {
     speech.speak(60)
     speech.speak(60)
     expect(spoken).toEqual([{ text: '60', lang: 'fr-FR', voice: french }, { text: '60', lang: 'fr-FR', voice: french }])
-    expect(synth.cancel).toHaveBeenCalledTimes(2)
+    expect(synth.cancel).toHaveBeenCalledOnce()
     expect(speech.matchingVoices.value).toEqual([french])
+  })
+
+  it('plays the same preview again after completion without pausing or reusing its utterance', async () => {
+    await mountSpeech()
+    speech.speak(60)
+    utterances[0]!.onstart?.(new Event('start') as SpeechSynthesisEvent)
+    await nextTick()
+    utterances[0]!.onend?.(new Event('end') as SpeechSynthesisEvent)
+    await nextTick()
+    speech.speak(60)
+    expect(utterances).toHaveLength(2)
+    expect(utterances[1]).not.toBe(utterances[0])
+    expect(synth.pause).not.toHaveBeenCalled()
+    expect(synth.cancel).not.toHaveBeenCalled()
+  })
+
+  it('resumes a paused engine and ignores stale cancellation errors', async () => {
+    await mountSpeech()
+    synth.paused = true
+    speech.speak(60)
+    expect(synth.resume).toHaveBeenCalledOnce()
+    expect(synth.paused).toBe(false)
+    speech.speak(45)
+    utterances[0]!.onerror?.({ error: 'canceled' } as SpeechSynthesisErrorEvent)
+    expect(speech.error.value).toBeUndefined()
+    const failure = { error: 'not-allowed' } as SpeechSynthesisErrorEvent
+    utterances[1]!.onerror?.(failure)
+    expect(speech.error.value).toBe(failure)
+    speech.speak(45)
+    expect(speech.error.value).toBeUndefined()
+    speech.stop()
+    expect(synth.cancel).toHaveBeenCalledTimes(2)
   })
 
   it('refreshes delayed voices and falls back when the saved voice is unavailable', async () => {

@@ -3,7 +3,8 @@ import type { NuxtPage } from '@nuxt/test-utils/e2e'
 import { afterAll, afterEach, describe, expect, it } from 'vitest'
 import { fileURLToPath } from 'node:url'
 import { cleanupDatabase, testEnvironment, testPool, testUser } from '../../../../helpers/database'
-import type { RoomView } from '../../../../../shared/types/rooms'
+import type { AccountData, RoomView } from '../../../../../shared/types/rooms'
+import { defaultPreferences } from '../../../../../shared/types/rooms'
 import type { RoomAction } from '../../../../../shared/utils/validation'
 
 describe('local matches', { timeout: 60_000 }, async () => {
@@ -114,10 +115,10 @@ describe('local matches', { timeout: 60_000 }, async () => {
     for (const action of [{ type: 'roster', playerIds: [self.id, guests.selected[0]!.id] }, { type: 'ready', ready: true }] as RoomAction[]) {
       room = await post<RoomView>(`/api/rooms/${room.id}/actions`, { requestId: crypto.randomUUID(), expectedRevision: room.revision, action })
     }
-    const observerContext = await (await getBrowser()).newContext({ storageState: await page.context().storageState() })
+    const observerContext = await (await getBrowser()).newContext({ storageState: await page.context().storageState(), extraHTTPHeaders: { 'X-Forwarded-For': `192.0.2.${++clientIp}` } })
     const observer = await observerContext.newPage()
     try {
-      await observer.goto(url(`/room/${room.id}`), { waitUntil: 'networkidle' })
+      await observer.goto(url(`/room/${room.id}`), { waitUntil: 'domcontentloaded' })
       const attendance = observer.locator('section').filter({ has: observer.getByRole('heading', { name: 'Who’s here', exact: true }) }).last()
       await expect.poll(() => attendance.textContent()).toContain('Room guest')
       await page.goto(url('/players'), { waitUntil: 'hydration' })
@@ -149,7 +150,7 @@ describe('local matches', { timeout: 60_000 }, async () => {
       await page.getByRole('button', { name: 'Ready', exact: true }).click()
       await expect.poll(() => page.getByRole('button', { name: 'Start match', exact: true }).isEnabled()).toBe(true)
       await page.getByRole('button', { name: 'Start match', exact: true }).click()
-      await page.getByRole('link', { name: 'Open match', exact: true }).waitFor()
+      await page.waitForURL(/\/match\/(?!new)[^/]+$/)
       const started = await (await page.request.get(url(`/api/rooms/${room.id}`))).json() as RoomView
       const fresh = started.match!.players.find(player => player.name === 'Room guest')!
       expect(fresh.id).not.toBe(guests.selected[0]!.id)
@@ -202,6 +203,69 @@ describe('local matches', { timeout: 60_000 }, async () => {
   const activePlayer = (target = page) => target.getByRole('article').and(target.locator('[aria-current="true"]'))
   const activeScore = (target = page) => activePlayer(target).locator('p.font-extrabold')
   const scores = (target = page) => target.getByRole('article').locator('p.font-extrabold')
+
+  it.each(['x01', 'atc'] as const)('applies saved rules to rooms and setup without overwriting defaults for a %s match', async mode => {
+    page = (await authenticatedPage('Saved rules')).page
+    const preferences = { ...defaultPreferences, settings: { mode: 'x01' as const, startScore: 301 as const, doubleIn: true, doubleOut: false, legsTarget: 3 }, atcSettings: { mode: 'atc' as const, fastForward: true } }
+    const saved = await page.request.put(url('/api/preferences'), { data: preferences, headers: { Origin: new URL(url('/')).origin } })
+    expect(saved.status()).toBe(200)
+    await page.goto(url('/'), { waitUntil: 'hydration' })
+    await page.getByRole('button', { name: 'Create room', exact: true }).click()
+    await page.waitForURL(/\/room\/[^/]+$/)
+    const roomId = new URL(page.url()).pathname.split('/').at(-1)!
+    const room = await (await page.request.get(url(`/api/rooms/${roomId}`))).json() as RoomView
+    expect(room.settings).toEqual(preferences.settings)
+    await page.getByRole('button', { name: 'Leave room', exact: true }).click()
+    await page.getByRole('dialog').getByRole('button', { name: 'Leave room', exact: true }).click()
+    await page.waitForURL(url('/'))
+    await page.getByRole('link', { name: 'New match', exact: true }).click()
+    await expect.poll(() => page.getByRole('checkbox', { name: 'Double in', exact: true }).isChecked()).toBe(true)
+    expect(await page.getByRole('checkbox', { name: 'Double out', exact: true }).isChecked()).toBe(false)
+    expect(await page.getByRole('combobox', { name: 'Start score', exact: true }).textContent()).toContain('301')
+    expect(await page.getByRole('spinbutton', { name: 'Legs to win', exact: true }).inputValue()).toBe('3')
+    await page.getByPlaceholder('Player 2', { exact: true }).fill('Guest')
+    if (mode === 'x01') await page.getByRole('checkbox', { name: 'Double out', exact: true }).check()
+    else {
+      await page.getByRole('button', { name: 'Around the Clock', exact: true }).click()
+      expect(await page.getByRole('checkbox', { name: 'Fast Forward', exact: true }).isChecked()).toBe(true)
+      await page.getByRole('checkbox', { name: 'Fast Forward', exact: true }).uncheck()
+    }
+    await page.getByRole('button', { name: 'Start Match', exact: true }).click()
+    await page.waitForURL(/\/match\/(?!new)[^/]+$/)
+    const account = await (await page.request.get(url('/api/account'))).json() as AccountData
+    expect(account.settings).toEqual(preferences.settings)
+    expect(account.atcSettings).toEqual(preferences.atcSettings)
+    expect(account.currentRoom!.settings).toEqual(mode === 'x01' ? { ...preferences.settings, doubleOut: true } : { mode: 'atc', fastForward: false })
+  })
+
+  it('opens the scoreboard for the host, participants, and spectators when the host starts', async () => {
+    page = (await authenticatedPage('Host')).page
+    const participant = (await authenticatedPage('Participant')).page
+    const spectator = (await authenticatedPage('Spectator')).page
+    async function post(target: NuxtPage, path: string, data: object) {
+      const response = await target.request.post(url(path), { data, headers: { Origin: new URL(url('/')).origin } })
+      expect(response.status(), await response.text()).toBe(200)
+      return await response.json() as RoomView
+    }
+    try {
+      let room = await post(page, '/api/rooms', {})
+      room = await post(participant, '/api/rooms/join', { code: room.code })
+      room = await post(spectator, '/api/rooms/join', { code: room.code })
+      for (const [target, action] of [[spectator, { type: 'roster', playerIds: [] }], [page, { type: 'ready', ready: true }], [participant, { type: 'ready', ready: true }]] as Array<[NuxtPage, RoomAction]>) {
+        room = await post(target, `/api/rooms/${room.id}/actions`, { requestId: crypto.randomUUID(), expectedRevision: room.revision, action })
+      }
+      await Promise.all([page, participant, spectator].map(target => target.goto(url(`/room/${room.id}`), { waitUntil: 'hydration' })))
+      await expect.poll(() => page.getByRole('button', { name: 'Start match', exact: true }).isEnabled()).toBe(true)
+      await page.getByRole('button', { name: 'Start match', exact: true }).click()
+      await Promise.all([page, participant, spectator].map(async target => {
+        await target.waitForURL(/\/match\/(?!new)[^/]+$/)
+        await target.getByRole('heading', { name: 'Throw Pad', exact: true }).waitFor()
+      }))
+      expect(participant.url()).toBe(page.url())
+      expect(spectator.url()).toBe(page.url())
+      expect(await spectator.getByRole('button', { name: 'Miss', exact: true }).isDisabled()).toBe(true)
+    } finally { await participant.context().close(); await spectator.context().close() }
+  })
 
   async function throwDart(segment: number) {
     await page.getByRole('tab', { name: 'Quick Input', exact: true }).click()
@@ -266,6 +330,8 @@ describe('local matches', { timeout: 60_000 }, async () => {
     await page.getByRole('option', { name: 'French test', exact: true }).click()
     await page.getByRole('button', { name: 'Test voice', exact: true }).click()
     await expect.poll(async () => (await calls()).at(-1)).toEqual({ text: '60', lang: 'fr-FR', voice: 'fr-test' })
+    await page.getByRole('button', { name: 'Test voice', exact: true }).click()
+    await expect.poll(async () => (await calls()).length).toBe(2)
     await page.getByRole('button', { name: 'Save defaults', exact: true }).click()
     await expect.poll(() => page.evaluate(() => localStorage.getItem('dartcounter:v1:announcement-voice'))).toBe('fr-test')
     await page.goto(page.url(), { waitUntil: 'hydration' })
@@ -489,7 +555,6 @@ describe('local matches', { timeout: 60_000 }, async () => {
     expect(await page.getByRole('button', { name: 'Start match', exact: true }).isDisabled()).toBe(true)
     await page.getByRole('button', { name: 'Ready', exact: true }).click()
     await page.getByRole('button', { name: 'Start match', exact: true }).click()
-    await page.getByRole('link', { name: 'Open match', exact: true }).click()
     await page.waitForURL(/\/match\/(?!new)[^/]+$/)
     expect(new URL(page.url()).pathname).not.toBe(`/match/${finishedId}`)
     await page.getByRole('button', { name: 'Leave room', exact: true }).click()
@@ -538,7 +603,7 @@ describe('local matches', { timeout: 60_000 }, async () => {
       room = await action(page, room, { type: 'ready', ready: true })
       room = await action(bob.page, room, { type: 'ready', ready: true })
       room = await action(page, room, { type: 'start' })
-      await Promise.all([page.goto(url(`/match/${room.match!.id}`), { waitUntil: 'hydration' }), bob.page.goto(url(`/match/${room.match!.id}`), { waitUntil: 'hydration' })])
+      await Promise.all([page.goto(url(`/match/${room.match!.id}`), { waitUntil: 'hydration' }), bob.page.waitForURL(url(`/match/${room.match!.id}`))])
       const controllerId = room.controllers[room.match!.players[0]!.id]
       const controller = controllerId === alice.user.id ? page : bob.page
       const watcher = controller === page ? bob.page : page
@@ -617,7 +682,7 @@ describe('local matches', { timeout: 60_000 }, async () => {
     await page.getByRole('button', { name: 'Ready', exact: true }).click()
     await expect.poll(() => page.getByRole('button', { name: 'Start match', exact: true }).isEnabled()).toBe(true)
     await page.getByRole('button', { name: 'Start match', exact: true }).click()
-    await page.getByRole('link', { name: 'Open match', exact: true }).waitFor()
+    await page.waitForURL(/\/match\/(?!new)[^/]+$/)
   })
 
   it('keeps membership alive from another room tab, expires it away from the room, and explains old links', async () => {
@@ -627,10 +692,11 @@ describe('local matches', { timeout: 60_000 }, async () => {
     expect(created.status()).toBe(200)
     const room = await created.json() as RoomView
     await page.goto(url(`/room/${room.id}`), { waitUntil: 'hydration' })
-    const otherContext = await (await getBrowser()).newContext({ storageState: await page.context().storageState() })
+    const otherContext = await (await getBrowser()).newContext({ storageState: await page.context().storageState(), extraHTTPHeaders: { 'X-Forwarded-For': `192.0.2.${++clientIp}` } })
     const otherTab = await otherContext.newPage()
     try {
-      await otherTab.goto(url(`/room/${room.id}`), { waitUntil: 'networkidle' })
+      await otherTab.goto(url(`/room/${room.id}`), { waitUntil: 'domcontentloaded' })
+      await expect.poll(() => otherTab.getByRole('button', { name: 'Room options', exact: true }).isEnabled()).toBe(true)
       await page.goto(url('/history'), { waitUntil: 'hydration' })
       await testPool.query("UPDATE members SET last_seen_at=now()-interval '1 minute',expires_at=now()+interval '1 minute' WHERE room_id=$1", [room.id])
       await expect.poll(async () => (await testPool.query("SELECT expires_at>now()+interval '4 minutes' AS renewed FROM members WHERE room_id=$1", [room.id])).rows[0]?.renewed).toBe(true)
@@ -638,7 +704,7 @@ describe('local matches', { timeout: 60_000 }, async () => {
       await testPool.query("UPDATE members SET last_seen_at=now()-interval '6 minutes',expires_at=now()-interval '1 second' WHERE room_id=$1", [room.id])
       await expect.poll(async () => (await testPool.query('SELECT count(*) FROM rooms WHERE id=$1', [room.id])).rows[0].count).toBe('0')
       await page.goto(url(`/room/${room.id}`), { waitUntil: 'hydration' })
-      await page.getByText('This room is no longer available. Finished results are kept in History.', { exact: true }).waitFor()
+      await page.locator('section.page-stack').getByText('This room is no longer available. Finished results are kept in History.', { exact: true }).waitFor()
       expect(await page.getByRole('link', { name: 'Return to Play', exact: true }).count()).toBe(1)
       await page.goto(url('/'), { waitUntil: 'hydration' })
       expect(await page.getByRole('heading', { name: 'Current room', exact: true }).count()).toBe(0)
@@ -678,7 +744,6 @@ describe('local matches', { timeout: 60_000 }, async () => {
     await expect.poll(() => page.getByRole('button', { name: 'Start match', exact: true }).isDisabled()).toBe(true)
     await page.getByRole('button', { name: 'Ready', exact: true }).click()
     await page.getByRole('button', { name: 'Start match', exact: true }).click()
-    await page.getByRole('link', { name: 'Open match', exact: true }).click()
     await page.waitForURL(/\/match\/(?!new)[^/]+$/)
     await expect.poll(() => scores().allTextContents()).toEqual(['Target: 1', 'Target: 1'])
   })

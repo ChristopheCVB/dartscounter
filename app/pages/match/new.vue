@@ -24,12 +24,10 @@ import type { GameSettings } from '~~/shared/types/darts'
 import MatchConfigForm from '~/components/setup/MatchConfigForm.vue'
 import { useMatchStore } from '~/stores/match'
 import { usePlayersStore } from '~/stores/players'
-import { useSettingsStore } from '~/stores/settings'
 
 const router = useRouter()
 const matchStore = useMatchStore()
 const playersStore = usePlayersStore()
-const settingsStore = useSettingsStore()
 const account = useAccountStore()
 const busy = ref(false)
 onMounted(() => account.load())
@@ -44,8 +42,6 @@ async function onSubmit(payload: {
   if (busy.value || account.currentRoom) return
   busy.value = true
   try {
-    const saved = settings.mode === 'x01' ? await settingsStore.update(settings) : await settingsStore.updateAtcSettings(settings)
-    if (!saved) return
     const ensuredPlayers = await playersStore.ensureMany(players)
     if (ensuredPlayers.length !== players.length) return
     if (await matchStore.startMatch(settings, ensuredPlayers)) await router.push(`/match/${matchStore.activeMatch!.id}`)

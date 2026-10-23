@@ -3,7 +3,7 @@ import { createError } from 'h3'
 import type { PoolClient } from 'pg'
 import { getPool } from '../db/db'
 import type { Match, MatchSummary, GameSettings, PlayerIdentity } from '../../shared/types/darts'
-import type { RoomMember, RoomView } from '../../shared/types/rooms'
+import type { Preferences, RoomMember, RoomView } from '../../shared/types/rooms'
 import { defaultPreferences, ROOM_CONNECTED_MS, ROOM_GRACE_MS } from '../../shared/types/rooms'
 import { useMatchState } from '../../shared/utils/matchState'
 import type { RoomAction } from '../../shared/utils/validation'
@@ -157,15 +157,16 @@ export function newCode() {
   return Array.from({ length: 8 }, () => alphabet[randomInt(alphabet.length)]).join('')
 }
 
-export async function createRoom(user: { id: string, name: string }, settings: GameSettings = defaultPreferences.settings) {
+export async function createRoom(user: { id: string, name: string }, settings?: GameSettings) {
   await expireRooms()
   return transaction(async db => {
     await db.query('SELECT id FROM "user" WHERE id=$1 FOR UPDATE', [user.id])
     if ((await db.query('SELECT room_id FROM members WHERE user_id=$1', [user.id])).rowCount) return fail(409, 'Leave your current room before creating another.')
+    const roomSettings = settings ?? (await db.query<{ data: Preferences }>('SELECT data FROM preferences WHERE user_id=$1', [user.id])).rows[0]?.data.settings ?? defaultPreferences.settings
     const self = await ensureSelf(db, user)
     let id: string | undefined
     for (let attempt = 0; attempt < 10 && !id; attempt++) {
-      id = (await db.query<{ id: string }>('INSERT INTO rooms (code, owner_id, settings) VALUES ($1,$2,$3) ON CONFLICT (code) DO NOTHING RETURNING id', [newCode(), user.id, JSON.stringify(settings)])).rows[0]?.id
+      id = (await db.query<{ id: string }>('INSERT INTO rooms (code, owner_id, settings) VALUES ($1,$2,$3) ON CONFLICT (code) DO NOTHING RETURNING id', [newCode(), user.id, JSON.stringify(roomSettings)])).rows[0]?.id
     }
     if (!id) return fail(503, 'Unable to allocate room code')
     await db.query('INSERT INTO members (room_id,user_id,roster) VALUES ($1,$2,$3)', [id, user.id, JSON.stringify([self])])
