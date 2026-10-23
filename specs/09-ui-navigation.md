@@ -8,6 +8,7 @@ This specification supersedes the navigation and page-layout descriptions in spe
 - Main navigation: Play, Players, History, Settings. Desktop uses header links; phones use a header menu.
 - The match scoring layout, controls, keyboard shortcuts, and recap are preserved. Its shared header, background, and base theme follow the app.
 - The authenticated session is fetched during SSR using request cookies and hydrated into the client. Home and the header share this session so signed-in visitors do not see a signed-out flash. Account data is loaded with the same request context.
+- Pages define English titles and descriptions. Browser titles use `Page - DartsCounter`; Open Graph and Twitter tags share the page title and description. Room and match metadata stays generic, without player names, scores, or invite codes. Only Play permits search indexing; other pages use `noindex, nofollow`.
 
 ## Pages
 

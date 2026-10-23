@@ -47,6 +47,11 @@
 <script setup lang="ts">
 import { useHistoryStore } from '~/stores/history'
 
+definePageMeta({
+  title: 'History',
+  description: 'Review your completed darts matches, results, and detailed player statistics.'
+})
+
 const historyStore = useHistoryStore()
 const selected = ref<(typeof historyStore.entries)[number] | null>(null)
 const removing = ref(false)

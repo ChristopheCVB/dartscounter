@@ -79,6 +79,12 @@ import { usePlayersStore } from '~/stores/players'
 import type { RoomAction } from '~~/shared/utils/validation'
 import type { GameMode, GameSettings } from '~~/shared/types/darts'
 import { settingsSchema } from '~~/shared/utils/validation'
+
+definePageMeta({
+  title: 'Game room',
+  description: 'Gather your darts players, choose match rules, and get ready to play together.'
+})
+
 const route = useRoute()
 const store = useMatchStore()
 const account = useAccountStore()

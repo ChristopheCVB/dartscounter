@@ -172,6 +172,11 @@ import MatchTurnTimeline from '~/components/match/TurnTimeline.vue'
 import { complementaryColor } from '~~/shared/utils/playerColors'
 import { useMatchStore } from '~/stores/match'
 
+definePageMeta({
+  title: 'Match',
+  description: 'Score your darts match, follow each turn, and view match results and player statistics.'
+})
+
 const route = useRoute()
 const router = useRouter()
 const matchStore = useMatchStore()

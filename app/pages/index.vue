@@ -46,6 +46,12 @@ import { useAccountStore } from '~/stores/account'
 import { useMatchStore } from '~/stores/match'
 import type { RoomView } from '~~/shared/types/rooms'
 import { apiError } from '~/utils/apiError'
+
+definePageMeta({
+  title: 'Play',
+  description: 'Play 301, 501, and Around the Clock with friends. Track scores, share a game room, and follow your darts statistics.'
+})
+
 const session = useNuxtApp().$authSession
 const account = useAccountStore()
 const matchStore = useMatchStore()

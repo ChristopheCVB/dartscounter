@@ -50,6 +50,12 @@ import { playerSchema } from '~~/shared/utils/validation'
 import { fallbackPlayerColor } from '~~/shared/utils/playerColors'
 import { useAccountStore } from '~/stores/account'
 import { usePlayersStore } from '~/stores/players'
+
+definePageMeta({
+  title: 'Players',
+  description: 'Manage your saved darts players and guests, and compare lifetime wins, averages, and hit rates.'
+})
+
 const account = useAccountStore()
 const players = usePlayersStore()
 const toast = useToast()

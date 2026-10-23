@@ -1,4 +1,6 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
+const description = 'Play 301, 501, and Around the Clock with friends. Track scores, share a game room, and follow your darts statistics.'
+
 export default defineNuxtConfig({
   modules: ['@nuxt/ui', '@pinia/nuxt', '@vueuse/nuxt', '@nuxt/eslint', '@nuxt/test-utils/module', '@nuxtjs/turnstile', 'nuxt-email-renderer'],
   nuxtEmailRenderer: { devtools: true, codeHighlighting: false },
@@ -9,6 +11,17 @@ export default defineNuxtConfig({
   css: ['~/assets/css/main.css'],
   app: {
     head: {
+      title: 'DartsCounter',
+      htmlAttrs: { lang: 'en' },
+      meta: [
+        { name: 'description', content: description },
+        { property: 'og:site_name', content: 'DartsCounter' },
+        { property: 'og:type', content: 'website' },
+        { property: 'og:description', content: description },
+        { name: 'twitter:card', content: 'summary' },
+        { name: 'twitter:description', content: description },
+        { name: 'robots', content: 'noindex, nofollow' },
+      ],
       link: [
         { rel: 'icon', href: '/favicon.ico', sizes: '48x48' },
         { rel: 'icon', href: '/logo.svg', sizes: 'any', type: 'image/svg+xml' },

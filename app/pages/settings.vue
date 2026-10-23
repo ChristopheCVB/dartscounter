@@ -36,6 +36,12 @@
 <script setup lang="ts">
 import { useAccountStore } from '~/stores/account'
 import { useSettingsStore } from '~/stores/settings'
+
+definePageMeta({
+  title: 'Settings',
+  description: 'Set your default darts rules, sound effects, and score announcement preferences.'
+})
+
 const account = useAccountStore()
 const settingsStore = useSettingsStore()
 const toast = useToast()
