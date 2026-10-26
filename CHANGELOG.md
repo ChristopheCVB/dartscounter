@@ -1,5 +1,25 @@
 # Changelog
 
+## [2.2.0](https://github.com/ChristopheCVB/dartscounter/compare/v2.1.0...v2.2.0) (2026-10-26)
+
+
+### Features
+
+* add classic Cricket game mode ([#13](https://github.com/ChristopheCVB/dartscounter/issues/13)) ([2be716b](https://github.com/ChristopheCVB/dartscounter/commit/2be716b78efa1a1e2577ce3a33282157aba57841))
+* add page metadata and search indexing rules ([fede4cc](https://github.com/ChristopheCVB/dartscounter/commit/fede4cc7c097e93c8ef3824620d266703c05952d))
+* add shareable room invitations ([#12](https://github.com/ChristopheCVB/dartscounter/issues/12)) ([5c6517c](https://github.com/ChristopheCVB/dartscounter/commit/5c6517c910a2265fd0a17210aa56c7f5223eab42))
+* announce turn scores and show live player averages ([58e36f6](https://github.com/ChristopheCVB/dartscounter/commit/58e36f67c9396e4dacc1126c90b95b8a1f653f76))
+* make rooms temporary play sessions ([fac6296](https://github.com/ChristopheCVB/dartscounter/commit/fac629695a778879ea6acc02b1edc1375e7da06f)), closes [#11](https://github.com/ChristopheCVB/dartscounter/issues/11)
+* rework app navigation and active match recovery ([0ab276f](https://github.com/ChristopheCVB/dartscounter/commit/0ab276f533ac039655af4188f302ee5b0db40347))
+
+
+### Bug Fixes
+
+* apply saved rules and restore match announcements ([3037884](https://github.com/ChristopheCVB/dartscounter/commit/30378841890d68665fb660d27301ac40dc637ecd))
+* configure Bun 1.4.4 and expose Docker tag to Dependabot ([bb6bce4](https://github.com/ChristopheCVB/dartscounter/commit/bb6bce44b37bc263bfe5c455db66af9e0e07ab8b))
+* preserve client headers in SSR session checks ([2cf810e](https://github.com/ChristopheCVB/dartscounter/commit/2cf810e999f79e45281868b2e38b80f05a558ce2))
+* remove deleted guests from room rosters ([6d7790d](https://github.com/ChristopheCVB/dartscounter/commit/6d7790d3d9e509ded3064bb906a80d6beb21022f))
+
 ## [2.1.0](https://github.com/ChristopheCVB/dartscounter/compare/v2.0.1...v2.1.0) (2026-10-21)
 
 
