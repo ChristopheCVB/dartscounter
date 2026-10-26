@@ -52,6 +52,7 @@
         <UButton v-if="lastSummary" color="primary" variant="soft" @click="showRecap = true">Show Match Recap</UButton>
         <UButton color="neutral" variant="soft" @click="showShortcuts = true">Keyboard shortcuts (?)</UButton>
         <UButton v-if="matchStore.room" :to="`/room/${matchStore.room.id}`" color="neutral" variant="soft">Room lobby</UButton>
+        <RoomShare v-if="matchStore.room" :code="matchStore.room.code" />
         <RoomLeaveButton v-if="matchStore.room" :room="matchStore.room" />
         <UButton v-if="match.status === 'in_progress' && matchStore.room?.ownerId === account.userId" color="error" variant="soft" :disabled="!matchStore.connected || matchStore.pending || !!matchStore.uncertain" @click="exitMatch">End Match</UButton>
       </div>

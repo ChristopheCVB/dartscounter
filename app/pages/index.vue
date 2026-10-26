@@ -15,6 +15,7 @@
       <div class="flex flex-wrap gap-3">
         <UButton :to="`/room/${account.currentRoom.id}`" :variant="resumeMatchId ? 'soft' : 'solid'">Return to room</UButton>
         <UButton v-if="resumeMatchId" :to="`/match/${resumeMatchId}`" icon="i-lucide-play">Open match</UButton>
+        <RoomShare :code="account.currentRoom.code" />
         <RoomLeaveButton :room="account.currentRoom" />
       </div>
     </section>

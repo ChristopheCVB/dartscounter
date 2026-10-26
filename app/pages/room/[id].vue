@@ -7,7 +7,7 @@
     <div class="flex flex-wrap items-center justify-between gap-4 border-y border-default py-4">
       <div class="flex flex-wrap items-center gap-3">
         <UBadge :color="store.connected ? 'success' : 'warning'" variant="soft">{{ store.connected ? 'Live' : 'Reconnecting' }}</UBadge>
-        <template v-if="room"><span class="font-mono text-lg font-semibold tracking-widest">{{ room.code }}</span><UButton icon="i-lucide-copy" aria-label="Copy invite code" color="neutral" variant="ghost" @click="copyCode" /></template>
+        <template v-if="room"><span class="font-mono text-lg font-semibold tracking-widest">{{ room.code }}</span><RoomShare :code="room.code" /></template>
       </div>
       <div class="flex items-center gap-2">
         <UButton v-if="room?.match" :to="`/match/${room.match.id}`">{{ running ? 'Open match' : 'View last match' }}</UButton>
@@ -138,11 +138,6 @@ const roomOptions = computed(() => owner.value ? running.value
 async function confirmAction() {
   if (!confirmation.value || disabled.value) return
   if (await store.act(confirmation.value)) confirmation.value = null
-}
-async function copyCode() {
-  if (!room.value) return
-  try { await navigator.clipboard.writeText(room.value.code); toast.add({ title: 'Invite code copied', color: 'success' }) }
-  catch { toast.add({ title: 'Could not copy the code', description: 'Select the invite code and copy it manually.', color: 'error' }) }
 }
 watch(() => me.value?.roster.map(p => p.id).join(), () => { selection.value = me.value?.roster.map(p => p.id) ?? [] }, { immediate: true })
 watch(() => JSON.stringify(room.value?.settings), () => {
