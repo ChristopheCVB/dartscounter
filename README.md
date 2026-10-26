@@ -14,7 +14,7 @@ mise exec -- bun install --frozen-lockfile
 
 With mise shell activation enabled, you can run `bun` directly. Otherwise, prefix commands with `mise exec --` as shown below.
 
-[`bunfig.toml`](bunfig.toml) sets [`run.bun = true`](https://bun.sh/docs/runtime/bunfig#run-bun-auto-alias-node-to-bun), so package scripts and their child commands run with Bun without repeating `bun --bun` in each script. Keep using `bun run` to apply this configuration.
+[`bunfig.toml`](bunfig.toml) sets [`run.bun = true`](https://bun.sh/docs/runtime/bunfig#run-bun-auto-alias-node-to-bun), so package scripts and their child commands invoked through `bun run` execute with Bun. Installation hooks do not use this setting, so `postinstall` explicitly runs `bun --bun nuxt prepare` to avoid using the system Node version.
 
 ## Database and authentication
 
