@@ -990,4 +990,19 @@ describe('local matches', { timeout: 60_000 }, async () => {
     await page.waitForURL(/\/match\/(?!new)[^/]+$/)
     await expect.poll(() => scores().allTextContents()).toEqual(['Target: 1', 'Target: 1'])
   })
+
+  it('keeps authenticated SSR requests out of the shared session rate-limit bucket', async () => {
+    page = (await authenticatedPage('SSR player')).page
+    let sessionStatus = 200
+    for (let attempt = 0; attempt < 105 && sessionStatus !== 429; attempt++) {
+      const response = await fetch(url('/api/auth/get-session'))
+      sessionStatus = response.status
+      await response.arrayBuffer()
+    }
+    expect(sessionStatus).toBe(429)
+
+    const response = await page.request.get(url('/players'), { maxRedirects: 0 })
+    expect(response.status()).toBe(200)
+    expect(await response.text()).toContain('SSR player')
+  })
 })
