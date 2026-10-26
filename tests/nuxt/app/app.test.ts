@@ -52,7 +52,7 @@ describe('page metadata', () => {
     await expect.poll(() => document.title).toBe('DartsCounter')
     expect(content('robots')).toBe('noindex, nofollow')
     for (const key of ['description', 'og:description', 'twitter:description']) {
-      expect(content(key)).toBe('Play 301, 501, and Around the Clock with friends. Track scores, share a game room, and follow your darts statistics.')
+      expect(content(key)).toBe('Play 301, 501, Cricket, and Around the Clock with friends. Track scores, share a game room, and follow your darts statistics.')
     }
   })
 })

@@ -1,4 +1,4 @@
-import type { AtcSettings, GameSettings, Match, MatchSummary, PlayerIdentity, X01Settings } from './darts'
+import type { AtcSettings, CricketSettings, GameSettings, Match, MatchSummary, PlayerIdentity, X01Settings } from './darts'
 
 export const ROOM_GRACE_MS = 5 * 60_000
 export const ROOM_CONNECTED_MS = 15_000
@@ -6,6 +6,7 @@ export const ROOM_CONNECTED_MS = 15_000
 export interface Preferences {
   settings: X01Settings
   atcSettings: AtcSettings
+  cricketSettings: CricketSettings
   soundEnabled: boolean
 }
 
@@ -43,5 +44,6 @@ export interface AccountData extends Preferences {
 export const defaultPreferences: Preferences = {
   settings: { mode: 'x01', startScore: 501, doubleIn: false, doubleOut: true, legsTarget: 1 },
   atcSettings: { mode: 'atc', fastForward: false },
+  cricketSettings: { mode: 'cricket', legsTarget: 1 },
   soundEnabled: true
 }

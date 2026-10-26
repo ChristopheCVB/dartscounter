@@ -1,5 +1,5 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
-const description = 'Play 301, 501, and Around the Clock with friends. Track scores, share a game room, and follow your darts statistics.'
+const description = 'Play 301, 501, Cricket, and Around the Clock with friends. Track scores, share a game room, and follow your darts statistics.'
 
 export default defineNuxtConfig({
   modules: ['@nuxt/ui', '@pinia/nuxt', '@vueuse/nuxt', '@nuxt/eslint', '@nuxt/test-utils/module', '@nuxtjs/turnstile', 'nuxt-email-renderer'],

@@ -36,7 +36,7 @@
   </section>
   <section v-else class="mx-auto grid max-w-2xl gap-6 py-8 sm:py-16">
     <img src="/logo.svg" alt="" class="size-14" width="56" height="56">
-    <header class="page-heading"><h1>Your next game starts here.</h1><p class="text-lg leading-relaxed">Score X01 or Around the Clock with friends. Share one screen or play together from your own devices.</p></header>
+    <header class="page-heading"><h1>Your next game starts here.</h1><p class="text-lg leading-relaxed">Score X01, Cricket, or Around the Clock with friends. Share one screen or play together from your own devices.</p></header>
     <div class="flex flex-wrap gap-3"><UButton to="/signin" icon="i-lucide-arrow-right" trailing>Sign in</UButton><UButton to="/signup" color="neutral" variant="soft">Create account</UButton></div>
     <p class="text-sm text-muted">Your account keeps your players, match history, and statistics together.</p>
   </section>
@@ -50,7 +50,7 @@ import { apiError } from '~/utils/apiError'
 
 definePageMeta({
   title: 'Play',
-  description: 'Play 301, 501, and Around the Clock with friends. Track scores, share a game room, and follow your darts statistics.'
+  description: 'Play 301, 501, Cricket, and Around the Clock with friends. Track scores, share a game room, and follow your darts statistics.'
 })
 
 const session = useNuxtApp().$authSession

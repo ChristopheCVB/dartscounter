@@ -8,6 +8,8 @@ import { defaultPreferences } from '../../../shared/types/rooms'
 import type { RoomAction } from '../../../shared/utils/validation'
 import { roomActionSchema } from '../../../shared/utils/validation'
 import { getAtcTargetSegment } from '../../../shared/utils/atcEngine'
+import { CRICKET_TARGETS } from '../../../shared/utils/cricketEngine'
+import { aggregatePlayerStats } from '../../../shared/utils/playerStats'
 
 beforeAll(prepareDatabase)
 afterAll(async () => { await cleanupDatabase(); await getPool().end() })
@@ -18,10 +20,10 @@ function act(room: RoomView, userId: string, action: RoomAction, requestId = cry
   return mutateRoom(room.id, userId, requestId, room.revision, action)
 }
 
-async function started(mode: 'x01' | 'atc' = 'x01') {
+async function started(mode: 'x01' | 'atc' | 'cricket' = 'x01') {
   const alice = await testUser('Alice')
   const bob = await testUser('Bob')
-  let room = await createRoom(alice, mode === 'x01' ? { mode, startScore: 301, doubleIn: false, doubleOut: true, legsTarget: 1 } : { mode, fastForward: true })
+  let room = await createRoom(alice, mode === 'x01' ? { mode, startScore: 301, doubleIn: false, doubleOut: true, legsTarget: 1 } : mode === 'cricket' ? { mode, legsTarget: 1 } : { mode, fastForward: true })
   room = await joinRoom(room.code, bob)
   room = await act(room, alice.id, { type: 'ready', ready: true })
   room = await act(room, bob.id, { type: 'ready', ready: true })
@@ -30,6 +32,56 @@ async function started(mode: 'x01' | 'atc' = 'x01') {
 }
 
 describe('server-authoritative rooms', () => {
+  it('loads the Cricket default for accounts with older stored preferences', async () => {
+    const owner = await testUser('Old preferences')
+    const { cricketSettings: _, ...legacy } = defaultPreferences
+    await testPool.query('INSERT INTO preferences (user_id,data) VALUES ($1,$2)', [owner.id, JSON.stringify(legacy)])
+    expect((await readAccount(owner)).cricketSettings).toEqual({ mode: 'cricket', legsTarget: 1 })
+  })
+
+  it('persists Cricket points, retries safely, restores leg wins, and undoes completed history', async () => {
+    const { alice, bob, room: initial } = await started('cricket')
+    let room = initial
+    const winner = room.match!.players[0]!
+    const controller = room.controllers[winner.id]!
+    const other = controller === alice.id ? bob.id : alice.id
+    const dart = { type: 'dart', dart: { segment: 20, multiplier: 3 } } as const
+    await expect(act(room, other, dart)).rejects.toMatchObject({ statusCode: 403 })
+    const requestId = crypto.randomUUID()
+    room = await act(initial, controller, dart, requestId)
+    expect((await act(initial, controller, dart, requestId)).match!.throws).toHaveLength(1)
+    await expect(act(initial, controller, dart)).rejects.toMatchObject({ statusCode: 409 })
+    room = await act(room, controller, { type: 'dart', dart: { segment: 20, multiplier: 1 } })
+    expect(room.match!.players[0]!.score).toBe(20)
+    expect((await loadRoom(room.id, other)).match).toEqual(room.match)
+    room = await act(room, other, { type: 'undo' })
+    expect(room.match!.players[0]!.score).toBe(0)
+
+    // The first player closes targets; the other player misses until the leg ends.
+    for (let count = 0; count < 30 && room.match!.status === 'in_progress'; count++) {
+      const player = room.match!.players[room.match!.currentPlayerIndex]!
+      const target = CRICKET_TARGETS.find(target => player.cricketMarks![target] < 3)!
+      room = await act(room, room.controllers[player.id]!, { type: 'dart', dart: player.id === winner.id ? { segment: target, multiplier: target === 25 ? 2 : 3 } : { segment: 0, multiplier: 1 } })
+    }
+    expect(room.match!.status).toBe('finished')
+    expect(room.summary!.gameMode).toBe('cricket')
+    expect(room.summary!.players[0]).toMatchObject({ legsWon: 1, scoredMarks: 22, scoredPoints: 25, dartsThrown: 8 })
+    const history = (await readAccount(alice)).history
+    expect(aggregatePlayerStats(history, [], 'cricket')[0]!.matches).toBe(1)
+    await testPool.query('INSERT INTO hidden_history (match_id,user_id) VALUES ($1,$2)', [room.match!.id, alice.id])
+    expect((await readAccount(alice)).history).toEqual([])
+    expect((await readAccount(bob)).history).toHaveLength(1)
+    const won = structuredClone(room)
+    room = await act(room, other, { type: 'undo' })
+    expect(room.summary).toBeNull()
+    expect(room.match!.status).toBe('in_progress')
+    expect(room.match!.players[0]!.cricketMarks![25]).toBe(2)
+    expect(room.match!.players[0]!.legsWon).toBe(0)
+    expect((await readAccount(bob)).history).toEqual([])
+    room = await act(room, controller, { type: 'dart', dart: { segment: 25, multiplier: 2 } })
+    expect(room.summary!.players).toEqual(won.summary!.players)
+  })
+
   it('uses every saved X01 default when creating a room without explicit rules', async () => {
     const owner = await testUser('Saved defaults')
     const preferences = { ...defaultPreferences, settings: { mode: 'x01' as const, startScore: 301 as const, doubleIn: true, doubleOut: false, legsTarget: 3 } }
@@ -39,12 +91,12 @@ describe('server-authoritative rooms', () => {
     expect((await readAccount(owner)).settings).toEqual(preferences.settings)
   })
 
-  it.each(['x01', 'atc'] as const)('keeps saved defaults when creating a room with explicit %s rules', async mode => {
+  it.each(['x01', 'atc', 'cricket'] as const)('keeps saved defaults when creating a room with explicit %s rules', async mode => {
     const owner = await testUser('Explicit rules')
     await testPool.query('INSERT INTO preferences (user_id,data) VALUES ($1,$2)', [owner.id, JSON.stringify(defaultPreferences)])
     const settings = mode === 'x01'
       ? { mode, startScore: 301 as const, doubleIn: true, doubleOut: false, legsTarget: 3 }
-      : { mode, fastForward: true }
+      : mode === 'cricket' ? { mode, legsTarget: 3 } : { mode, fastForward: true }
     expect((await createRoom(owner, settings)).settings).toEqual(settings)
     const account = await readAccount(owner)
     expect(account.settings).toEqual(defaultPreferences.settings)
@@ -105,9 +157,9 @@ describe('server-authoritative rooms', () => {
     expect(room.match!.players.map(player => player.id)).toContain(guest!.id)
   })
 
-  it.each(['x01', 'atc'] as const)('starts %s with one account controlling itself and a guest', async mode => {
+  it.each(['x01', 'atc', 'cricket'] as const)('starts %s with one account controlling itself and a guest', async mode => {
     const owner = await testUser('Owner')
-    let room = await createRoom(owner, mode === 'x01' ? { mode, startScore: 301, doubleIn: false, doubleOut: true, legsTarget: 1 } : { mode, fastForward: false })
+    let room = await createRoom(owner, mode === 'x01' ? { mode, startScore: 301, doubleIn: false, doubleOut: true, legsTarget: 1 } : mode === 'cricket' ? { mode, legsTarget: 1 } : { mode, fastForward: false })
     const self = room.members[0]!.roster[0]!
     const [guest] = await transaction(db => ensurePlayers(db, owner.id, [{ name: 'Guest', color: '#30c981' }]))
     room = await act(room, owner.id, { type: 'roster', playerIds: [self.id, guest!.id] })

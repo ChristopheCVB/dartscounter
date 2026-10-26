@@ -17,10 +17,11 @@
           <summary class="cursor-pointer py-2 text-sm font-medium text-primary">Player statistics</summary>
           <div class="mt-3 hidden overflow-x-auto md:block">
             <table class="w-full text-left text-sm">
-              <thead class="text-xs text-muted"><tr><th class="p-3">Player</th><template v-if="entry.gameMode === 'atc'"><th class="p-3">Hit rate</th><th class="p-3">Darts</th></template><template v-else><th class="p-3">Legs</th><th class="p-3">Avg</th><th class="p-3">First 9</th><th class="p-3">Checkout</th><th class="p-3">Darts</th><th class="p-3">Busts</th></template></tr></thead>
+              <thead class="text-xs text-muted"><tr><th class="p-3">Player</th><template v-if="entry.gameMode === 'atc'"><th class="p-3">Hit rate</th><th class="p-3">Darts</th></template><template v-else-if="entry.gameMode === 'cricket'"><th class="p-3">Legs</th><th class="p-3">Points</th><th class="p-3">MPR</th><th class="p-3">Darts</th></template><template v-else><th class="p-3">Legs</th><th class="p-3">Avg</th><th class="p-3">First 9</th><th class="p-3">Checkout</th><th class="p-3">Darts</th><th class="p-3">Busts</th></template></tr></thead>
               <tbody><tr v-for="row in sortedPlayers(entry)" :key="row.playerId" class="border-t border-default" :class="{ 'bg-primary/5': row.playerId === entry.winnerId }">
                 <th scope="row" class="p-3 font-medium"><span class="inline-flex items-center gap-2"><span class="size-2.5 shrink-0 rounded-full" :style="{ background: row.color }" />{{ row.name }}</span></th>
                 <template v-if="entry.gameMode === 'atc'"><td class="p-3">{{ row.hitRate !== undefined ? (row.hitRate * 100).toFixed(0) + '%' : '—' }}</td><td class="p-3">{{ row.dartsThrown }}</td></template>
+                <template v-else-if="entry.gameMode === 'cricket'"><td class="p-3">{{ row.legsWon }}</td><td class="p-3">{{ row.scoredPoints }}</td><td class="p-3">{{ (row.marksPerRound ?? 0).toFixed(2) }}</td><td class="p-3">{{ row.dartsThrown }}</td></template>
                 <template v-else><td class="p-3">{{ row.legsWon }}</td><td class="p-3">{{ row.average.toFixed(2) }}</td><td class="p-3">{{ row.firstNineAverage.toFixed(2) }}</td><td class="p-3">{{ row.checkoutsMade }}/{{ row.checkoutAttempts }} ({{ row.checkoutPercentage.toFixed(2) }}%)</td><td class="p-3">{{ row.dartsThrown }}</td><td class="p-3">{{ row.busts }}</td></template>
               </tr></tbody>
             </table>
@@ -30,6 +31,7 @@
               <h3 class="flex flex-wrap items-center gap-2 font-medium"><span class="size-2.5 shrink-0 rounded-full" :style="{ background: row.color }" />{{ row.name }}<UBadge v-if="row.playerId === entry.winnerId" color="primary" variant="soft">Winner</UBadge></h3>
               <dl class="grid grid-cols-2 gap-3 text-sm">
                 <template v-if="entry.gameMode === 'atc'"><div><dt class="text-muted">Hit rate</dt><dd>{{ row.hitRate !== undefined ? (row.hitRate * 100).toFixed(0) + '%' : '—' }}</dd></div></template>
+                <template v-else-if="entry.gameMode === 'cricket'"><div><dt class="text-muted">Legs</dt><dd>{{ row.legsWon }}</dd></div><div><dt class="text-muted">Points</dt><dd>{{ row.scoredPoints }}</dd></div><div><dt class="text-muted">MPR</dt><dd>{{ (row.marksPerRound ?? 0).toFixed(2) }}</dd></div></template>
                 <template v-else><div><dt class="text-muted">Legs</dt><dd>{{ row.legsWon }}</dd></div><div><dt class="text-muted">3-dart avg</dt><dd>{{ row.average.toFixed(2) }}</dd></div><div><dt class="text-muted">First 9 avg</dt><dd>{{ row.firstNineAverage.toFixed(2) }}</dd></div><div><dt class="text-muted">Checkout</dt><dd>{{ row.checkoutsMade }}/{{ row.checkoutAttempts }} ({{ row.checkoutPercentage.toFixed(2) }}%)</dd></div><div><dt class="text-muted">Busts</dt><dd>{{ row.busts }}</dd></div></template>
                 <div><dt class="text-muted">Darts</dt><dd>{{ row.dartsThrown }}</dd></div>
               </dl>

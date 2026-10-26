@@ -19,7 +19,7 @@ export async function readAccount(user: { id: string, name: string }): Promise<A
     })
   ])
   return {
-    ...(prefs.rows[0]?.data ?? structuredClone(defaultPreferences)), self, players: players.rows,
+    ...structuredClone(defaultPreferences), ...prefs.rows[0]?.data, self, players: players.rows,
     history: history.rows.map(row => row.summary),
     currentRoom
   }

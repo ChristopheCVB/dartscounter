@@ -52,11 +52,12 @@
           <section v-if="owner && !running" class="form-section border-t border-default pt-8">
             <div class="section-heading"><h2>Edit rules</h2><p>Saving changes clears everyone’s readiness.</p></div>
             <fieldset :disabled="disabled" class="form-fields">
-              <UFormField label="Game mode"><USelect v-model="mode" :items="[{ label: 'X01', value: 'x01' }, { label: 'Around the Clock', value: 'atc' }]" aria-label="Game mode" class="w-full" /></UFormField>
+              <UFormField label="Game mode"><USelect v-model="mode" :items="[{ label: 'X01', value: 'x01' }, { label: 'Around the Clock', value: 'atc' }, { label: 'Cricket', value: 'cricket' }]" aria-label="Game mode" class="w-full" /></UFormField>
               <template v-if="mode === 'x01'">
                 <div class="grid gap-5 sm:grid-cols-2"><UFormField label="Start score"><USelect v-model="x01.startScore" :items="[301, 501]" class="w-full" /></UFormField><UFormField label="Legs to win"><UInputNumber v-model="x01.legsTarget" :min="1" :max="11" class="w-full" /></UFormField></div>
                 <UCheckbox v-model="x01.doubleIn" label="Double in" /><UCheckbox v-model="x01.doubleOut" label="Double out" />
               </template>
+              <UFormField v-else-if="mode === 'cricket'" label="Cricket legs to win"><UInputNumber v-model="cricketLegsTarget" :min="1" :max="11" class="w-full" /></UFormField>
               <UCheckbox v-else v-model="fastForward" label="Fast Forward" description="Doubles skip 2 targets, trebles skip 3" />
               <div class="flex flex-wrap items-center gap-3"><UButton :disabled="!rulesDirty || !validatedRules.success" color="neutral" variant="soft" @click="saveRules">Save rules</UButton><span v-if="rulesDirty" class="text-sm text-warning" role="status">Unsaved rule changes</span></div>
             </fieldset>
@@ -75,6 +76,7 @@
 import { useAccountStore } from '~/stores/account'
 import { useMatchStore } from '~/stores/match'
 import { usePlayersStore } from '~/stores/players'
+import { useSettingsStore } from '~/stores/settings'
 
 import type { RoomAction } from '~~/shared/utils/validation'
 import type { GameMode, GameSettings } from '~~/shared/types/darts'
@@ -106,7 +108,8 @@ const guestName = ref('')
 const mode = ref<GameMode>('x01')
 const x01 = reactive({ startScore: 501 as 301 | 501, legsTarget: 1, doubleIn: false, doubleOut: true })
 const fastForward = ref(false)
-const draftRules = computed<GameSettings>(() => mode.value === 'x01' ? { mode: 'x01', ...x01 } : { mode: 'atc', fastForward: fastForward.value })
+const cricketLegsTarget = ref(useSettingsStore().cricketSettings.legsTarget)
+const draftRules = computed<GameSettings>(() => mode.value === 'x01' ? { mode: 'x01', ...x01 } : mode.value === 'cricket' ? { mode: 'cricket', legsTarget: cricketLegsTarget.value } : { mode: 'atc', fastForward: fastForward.value })
 const validatedRules = computed(() => settingsSchema.safeParse(draftRules.value))
 const rulesDirty = computed(() => !room.value || !validatedRules.value.success || JSON.stringify(validatedRules.value.data) !== JSON.stringify(settingsSchema.parse(room.value.settings)))
 const rosterDirty = computed(() => [...selection.value].sort().join() !== (me.value?.roster.map(p => p.id).sort().join() ?? ''))
@@ -145,6 +148,7 @@ watch(() => JSON.stringify(room.value?.settings), () => {
   if (!settings) return
   mode.value = settings.mode
   if (settings.mode === 'x01') Object.assign(x01, settings)
+  else if (settings.mode === 'cricket') cricketLegsTarget.value = settings.legsTarget
   else fastForward.value = settings.fastForward
 }, { immediate: true })
 function toggle(id: string) { selection.value = selection.value.includes(id) ? selection.value.filter(p => p !== id) : [...selection.value, id] }
@@ -162,6 +166,7 @@ async function addGuest() {
 }
 onMounted(async () => {
   await account.load()
+  if (room.value?.settings.mode !== 'cricket') cricketLegsTarget.value = useSettingsStore().cricketSettings.legsTarget
   await store.connect(id)
   try { await store.refresh(id) }
   catch {

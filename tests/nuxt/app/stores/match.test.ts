@@ -191,11 +191,12 @@ describe('live turn audio', () => {
     expect(sounds.playTurn.mock.calls[0]![0].at(-1).scoredPoints).toBe(1)
   })
 
-  it.each(['x01', 'atc'] as const)('celebrates a %s match win once and cancels on disconnect', mode => {
+  it.each(['x01', 'atc', 'cricket'] as const)('celebrates a %s match win once and cancels on disconnect', mode => {
     const store = useMatchStore()
-    const match = engine.createMatch(mode === 'atc' ? { mode, fastForward: false } : { ...settings, legsTarget: 1 }, seeds)
+    const match = engine.createMatch(mode === 'atc' ? { mode, fastForward: false } : mode === 'cricket' ? { mode, legsTarget: 1 } : { ...settings, legsTarget: 1 }, seeds)
     if (mode === 'x01') { match.players[0]!.score = 20; match.currentTurnStartScore = 20 }
-    else match.players[0]!.atcTarget = 21
+    else if (mode === 'atc') match.players[0]!.atcTarget = 21
+    else match.players[0]!.cricketMarks = { 20: 3, 19: 3, 18: 3, 17: 3, 16: 3, 15: 3, 25: 2 }
     store.acceptRoom(room(match, 1))
     darts(match, [mode === 'x01' ? { segment: 10, multiplier: 2 } : { segment: 25, multiplier: 1 }])
     store.acceptRoom(room(match, 2), true)
@@ -205,6 +206,23 @@ describe('live turn audio', () => {
     sounds.stop.mockClear()
     store.disconnect()
     expect(sounds.stop).toHaveBeenCalledOnce()
+  })
+
+  it('keeps Cricket turns and intermediate leg wins silent', () => {
+    const store = useMatchStore()
+    const match = engine.createMatch({ mode: 'cricket', legsTarget: 2 }, seeds)
+    store.acceptRoom(room(match, 1))
+    darts(match, [twenty, twenty, twenty])
+    store.acceptRoom(room(match, 2), true)
+    const player = match.players[match.currentPlayerIndex]!
+    player.cricketMarks = { 20: 3, 19: 3, 18: 3, 17: 3, 16: 3, 15: 3, 25: 2 }
+    store.acceptRoom(room(match, 3))
+    darts(match, [{ segment: 25, multiplier: 1 }])
+    store.acceptRoom(room(match, 4), true)
+    expect(match.status).toBe('in_progress')
+    expect(player.legsWon).toBe(1)
+    expect(sounds.playTurn).not.toHaveBeenCalled()
+    expect(sounds.playConfetti).not.toHaveBeenCalled()
   })
 
   it('passes an early bust to playback and keeps Around the Clock darts silent', () => {

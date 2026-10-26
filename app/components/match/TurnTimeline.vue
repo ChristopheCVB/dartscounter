@@ -17,6 +17,11 @@
           {{ dart.scoredPoints > 0 ? '✓' : '✗' }} {{ dart.segment === 0 ? 'Miss' : `${dart.multiplier === 1 ? '' : dart.multiplier === 2 ? 'D' : 'T'}${dart.segment === 25 ? 'Bull' : dart.segment}` }}
         </UBadge>
       </template>
+      <template v-else-if="settings.mode === 'cricket'">
+        <UBadge v-for="dart in darts" :key="dart.id" :color="dart.scoredMarks ? 'success' : 'neutral'" variant="soft" size="lg">
+          {{ dart.segment === 0 ? 'Miss' : `${dart.multiplier === 1 ? '' : dart.multiplier === 2 ? 'D' : 'T'}${dart.segment === 25 ? 'Bull' : dart.segment}` }} · {{ dart.scoredMarks ?? 0 }} {{ dart.scoredMarks === 1 ? 'mark' : 'marks' }} · +{{ dart.scoredPoints }} pts
+        </UBadge>
+      </template>
       <template v-else>
         <UBadge v-for="dart in darts" :key="dart.id" color="neutral" variant="soft" size="lg">
           {{ dart.multiplier }}x{{ dart.segment }} -> {{ dart.scoredPoints }}

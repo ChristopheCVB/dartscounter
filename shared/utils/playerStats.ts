@@ -18,6 +18,8 @@ export type AggregatedPlayerStats = {
   firstNineAverage: number
   checkoutPercentage: number
   hitRate?: number
+  scoredMarks?: number
+  marksPerRound?: number
   lastPlayed: number
 }
 
@@ -25,7 +27,7 @@ function round(value: number): number {
   return Math.round(value * 100) / 100
 }
 
-type MutableAggregate = Omit<AggregatedPlayerStats, 'average' | 'firstNineAverage' | 'checkoutPercentage' | 'hitRate'>
+type MutableAggregate = Omit<AggregatedPlayerStats, 'average' | 'firstNineAverage' | 'checkoutPercentage' | 'hitRate' | 'marksPerRound'>
 
 function emptyAggregate(seed: { id: string, name: string, color: string }): MutableAggregate {
   return {
@@ -72,6 +74,7 @@ export function aggregatePlayerStats(
       aggregate.matches += 1
       aggregate.dartsThrown += player.dartsThrown
       aggregate.scoredPoints += player.scoredPoints
+      if (mode === 'cricket') aggregate.scoredMarks = (aggregate.scoredMarks ?? 0) + (player.scoredMarks ?? 0)
       aggregate.lastPlayed = Math.max(aggregate.lastPlayed, entry.finishedAt)
 
       if (mode === 'x01') {
@@ -93,6 +96,15 @@ export function aggregatePlayerStats(
 
   return [...byId.values()]
     .map((player) => {
+      if (mode === 'cricket') {
+        return {
+          ...player,
+          average: 0,
+          firstNineAverage: 0,
+          checkoutPercentage: 0,
+          marksPerRound: player.dartsThrown ? round((player.scoredMarks ?? 0) / player.dartsThrown * 3) : 0
+        }
+      }
       if (mode === 'atc') {
         const hitRate = player.dartsThrown > 0 ? round(player.scoredPoints / player.dartsThrown) : 0
         return {

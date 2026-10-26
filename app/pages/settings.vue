@@ -12,6 +12,10 @@
         <div class="flex flex-wrap gap-x-8 gap-y-4"><UCheckbox v-model="local.doubleIn" label="Default double in" /><UCheckbox v-model="local.doubleOut" label="Default double out" /></div>
       </section>
       <section class="form-section border-t border-default pt-8">
+        <div class="section-heading"><h2>Cricket defaults</h2><p>Starting rules when you select Cricket in the lobby.</p></div>
+        <UFormField label="Default Cricket legs to win"><UInputNumber v-model="local.cricketLegsTarget" :min="1" :max="11" class="w-full sm:w-64" /></UFormField>
+      </section>
+      <section class="form-section border-t border-default pt-8">
         <div class="section-heading"><h2>Audio</h2><p>Hear turn totals and match celebrations.</p></div>
         <UCheckbox v-model="local.soundEnabled" label="Sound effects and announcements" />
         <ClientOnly>
@@ -50,6 +54,7 @@ const local = reactive({
   doubleIn: settingsStore.settings.doubleIn,
   doubleOut: settingsStore.settings.doubleOut,
   legsTarget: settingsStore.settings.legsTarget,
+  cricketLegsTarget: settingsStore.cricketSettings.legsTarget,
   soundEnabled: settingsStore.soundEnabled,
   announcementLanguage: settingsStore.announcementLanguage,
   announcementVoice: settingsStore.announcementVoice
@@ -81,6 +86,7 @@ async function save() {
   try {
     if (!await settingsStore.save({
       settings: { mode: 'x01', startScore: local.startScore, doubleIn: local.doubleIn, doubleOut: local.doubleOut, legsTarget: local.legsTarget },
+      cricketSettings: { mode: 'cricket', legsTarget: local.cricketLegsTarget },
       atcSettings: settingsStore.atcSettings, soundEnabled: local.soundEnabled
     })) return
     settingsStore.announcementLanguage = local.announcementLanguage
@@ -93,6 +99,6 @@ async function save() {
   } finally { saving.value = false }
 }
 
-watch(() => settingsStore.settings, settings => Object.assign(local, settings, { soundEnabled: settingsStore.soundEnabled }), { deep: true })
+watch(() => [settingsStore.settings, settingsStore.cricketSettings, settingsStore.soundEnabled] as const, ([settings, cricketSettings, soundEnabled]) => Object.assign(local, settings, { cricketLegsTarget: cricketSettings.legsTarget, soundEnabled }), { deep: true })
 onMounted(() => account.load())
 </script>

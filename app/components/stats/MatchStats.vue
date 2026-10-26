@@ -18,6 +18,9 @@
               <th>Hit Rate</th>
               <th>Darts</th>
             </template>
+            <template v-else-if="summary.gameMode === 'cricket'">
+              <th>Legs</th><th>Points</th><th>MPR</th><th>Darts</th>
+            </template>
             <template v-else>
               <th>Legs</th>
               <th>Avg</th>
@@ -34,6 +37,9 @@
             <template v-if="isAtc">
               <td>{{ row.hitRate !== undefined ? (row.hitRate * 100).toFixed(0) + '%' : '—' }}</td>
               <td>{{ row.dartsThrown }}</td>
+            </template>
+            <template v-else-if="summary.gameMode === 'cricket'">
+              <td>{{ row.legsWon }}</td><td>{{ row.scoredPoints }}</td><td>{{ (row.marksPerRound ?? 0).toFixed(2) }}</td><td>{{ row.dartsThrown }}</td>
             </template>
             <template v-else>
               <td>{{ row.legsWon }}</td>
