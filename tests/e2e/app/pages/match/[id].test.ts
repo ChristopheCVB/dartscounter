@@ -33,6 +33,112 @@ describe('local matches', { timeout: 60_000 }, async () => {
   })
   afterAll(cleanupDatabase)
 
+  it('shares room links from Play and the lobby and joins without changing membership during SSR', async () => {
+    page = (await authenticatedPage('Invitation host')).page
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, 'clipboard', { value: { writeText: async (value: string) => { Reflect.set(window, 'copiedInvitation', value) } } })
+    })
+    await page.goto(url('/'), { waitUntil: 'hydration' })
+    await page.getByRole('button', { name: 'Create room', exact: true }).click()
+    await page.waitForURL(/\/room\/[^/]+$/)
+    await page.getByRole('button', { name: 'Copy link', exact: true }).click()
+    const invitation = await page.evaluate(() => Reflect.get(window, 'copiedInvitation') as string)
+    const parsed = new URL(invitation)
+    expect(parsed.origin).toBe(new URL(url('/')).origin)
+    expect(parsed.pathname).toBe('/join')
+    expect(parsed.searchParams.get('code')).toMatch(/^[A-Z2-9]{8}$/)
+    const roomId = new URL(page.url()).pathname.split('/').at(-1)!
+    const home = await page.goto(url('/'), { waitUntil: 'hydration' })
+    expect(home?.status(), await page.locator('body').innerText()).toBe(200)
+    await page.getByRole('button', { name: 'Copy link', exact: true }).click()
+    expect(await page.evaluate(() => Reflect.get(window, 'copiedInvitation'))).toBe(invitation)
+
+    const friend = await authenticatedPage('Invitation friend')
+    try {
+      const response = await friend.page.request.get(invitation)
+      expect(response.status()).toBe(200)
+      expect(await response.text()).toContain('noindex, nofollow')
+      expect((await testPool.query('SELECT user_id FROM members WHERE user_id=$1', [friend.user.id])).rowCount).toBe(0)
+      await friend.page.goto(invitation, { waitUntil: 'hydration' })
+      await friend.page.waitForURL(`**/room/${roomId}`)
+      await friend.page.goto(invitation, { waitUntil: 'hydration' })
+      await friend.page.waitForURL(`**/room/${roomId}`)
+      expect((await testPool.query('SELECT user_id FROM members WHERE room_id=$1 AND user_id=$2', [roomId, friend.user.id])).rowCount).toBe(1)
+      await friend.page.goto(url('/'), { waitUntil: 'hydration' })
+      await friend.page.getByRole('button', { name: 'Leave room', exact: true }).click()
+      await friend.page.getByRole('dialog').getByRole('button', { name: 'Leave room', exact: true }).click()
+      await friend.page.getByRole('dialog').waitFor({ state: 'hidden' })
+      await friend.page.getByPlaceholder('ABCDEFGH', { exact: true }).fill(parsed.searchParams.get('code')!)
+      await friend.page.getByRole('button', { name: 'Join room', exact: true }).click()
+      await friend.page.waitForURL(`**/room/${roomId}`)
+    } finally { await friend.page.context().close() }
+  })
+
+  it('keeps an invitation across signed-out authentication links', async () => {
+    page = await createPage('/join?code=ABCDEFGH')
+    await page.waitForURL(/\/signin\?next=/)
+    expect(new URL(page.url()).searchParams.get('next')).toBe('/join?code=ABCDEFGH')
+    await page.getByRole('link', { name: 'Create account', exact: true }).click()
+    expect(new URL(page.url()).searchParams.get('next')).toBe('/join?code=ABCDEFGH')
+    await page.getByRole('link', { name: 'Resend verification email', exact: true }).click()
+    expect(new URL(page.url()).searchParams.get('next')).toBe('/join?code=ABCDEFGH')
+    await page.getByRole('link', { name: 'Back to sign in', exact: true }).click()
+    await page.getByRole('link', { name: 'Forgot password?', exact: true }).click()
+    expect(new URL(page.url()).searchParams.get('next')).toBe('/join?code=ABCDEFGH')
+  })
+
+  it('opens the live scoreboard for an invited spectator and offers sharing during play', async () => {
+    page = (await authenticatedPage('Playing host')).page
+    await startLobbyMatch()
+    await page.getByRole('button', { name: 'Copy link', exact: true }).waitFor()
+    const active = await (await page.request.get(url('/api/account'))).json() as AccountData
+    const room = active.currentRoom!
+    const friend = await authenticatedPage('Watching friend')
+    try {
+      await friend.page.goto(url(`/join?code=${room.code}`), { waitUntil: 'hydration' })
+      await friend.page.waitForURL(`**/match/${room.match!.id}`)
+      await friend.page.getByRole('heading', { name: 'Throw Pad', exact: true }).waitFor()
+      const joined = await (await friend.page.request.get(url(`/api/rooms/${room.id}`))).json() as RoomView
+      expect(joined.members.some(member => member.userId === friend.user.id)).toBe(true)
+      expect(joined.participantIds).not.toContain(friend.user.id)
+    } finally { await friend.page.context().close() }
+  })
+
+  it.each([false, true])('confirms switching rooms and handles an invitation expiring after departure (expired: %s)', async expired => {
+    page = (await authenticatedPage('Switching player')).page
+    await startLobbyMatch()
+    const previous = (await (await page.request.get(url('/api/account'))).json() as AccountData).currentRoom!
+    const host = await authenticatedPage('Destination host')
+    try {
+      const created = await host.page.request.post(url('/api/rooms'), { data: {}, headers: { Origin: new URL(url('/')).origin } })
+      expect(created.status()).toBe(200)
+      const destination = await created.json() as RoomView
+      await page.goto(url(`/join?code=${destination.code}`), { waitUntil: 'hydration' })
+      await page.getByRole('button', { name: 'Leave room', exact: true }).waitFor()
+      await page.getByRole('button', { name: 'Leave room', exact: true }).click()
+      let dialog = page.getByRole('dialog')
+      expect(await dialog.textContent()).toContain('Leaving ends this unfinished match without a winner for everyone.')
+      await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
+      await dialog.waitFor({ state: 'hidden' })
+      expect((await testPool.query('SELECT room_id FROM members WHERE user_id=$1', [previous.ownerId])).rows[0]?.room_id).toBe(previous.id)
+      await page.getByRole('button', { name: 'Leave room', exact: true }).click()
+      dialog = page.getByRole('dialog')
+      if (expired) {
+        const rotated = await host.page.request.post(url(`/api/rooms/${destination.id}/actions`), { data: { requestId: crypto.randomUUID(), expectedRevision: destination.revision, action: { type: 'rotate' } }, headers: { Origin: new URL(url('/')).origin } })
+        expect(rotated.status()).toBe(200)
+      }
+      await dialog.getByRole('button', { name: 'Leave room', exact: true }).click()
+      if (expired) {
+        await page.getByText('This invitation is no longer available.', { exact: false }).waitFor()
+        expect((await testPool.query('SELECT room_id FROM members WHERE user_id=$1', [previous.ownerId])).rowCount).toBe(0)
+      } else {
+        await page.waitForURL(`**/room/${destination.id}`)
+        expect((await testPool.query('SELECT room_id FROM members WHERE user_id=$1', [previous.ownerId])).rows[0]?.room_id).toBe(destination.id)
+      }
+      expect((await testPool.query('SELECT id FROM rooms WHERE id=$1', [previous.id])).rowCount).toBe(0)
+    } finally { await host.page.context().close() }
+  })
+
   it('renders signed-in home on the server and keeps that state through hydration', async () => {
     const user = await testUser('Home player')
     const context = await (await getBrowser()).newContext()
@@ -698,7 +804,9 @@ describe('local matches', { timeout: 60_000 }, async () => {
     expect((await testPool.query('SELECT count(*) FROM members WHERE room_id=$1', [original.id])).rows[0].count).toBe('1')
     await page.getByRole('button', { name: 'Leave room', exact: true }).click()
     dialog = page.getByRole('dialog')
+    const departure = page.waitForResponse(response => response.request().method() === 'DELETE' && response.url().endsWith(`/api/rooms/${original.id}/membership`))
     await dialog.getByRole('button', { name: 'Leave room', exact: true }).click()
+    expect((await departure).status()).toBe(200)
     await page.waitForURL(url('/'))
     await expect.poll(() => page.getByRole('heading', { name: 'Current room', exact: true }).count()).toBe(0)
     expect((await testPool.query('SELECT count(*) FROM rooms WHERE id=$1', [original.id])).rows[0].count).toBe('0')

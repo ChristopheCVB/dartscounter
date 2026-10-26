@@ -24,7 +24,7 @@
     "db:studio": "drizzle-kit studio",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "postinstall": "nuxt prepare",
+    "postinstall": "bun --bun nuxt prepare",
     "pwa-assets:generate": "pwa-assets-generator",
     "typecheck": "BUN_OPTIONS=--preload=./scripts/vue-tsc-bun.cjs nuxt typecheck",
     "start": "bun .output/server/index.mjs"

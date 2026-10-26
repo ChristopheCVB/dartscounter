@@ -13,15 +13,20 @@ describe('separate verified Dartscounter accounts', () => {
   it('verifies email, signs in, resets a password, and rejects the old password', async () => {
     const email = `${crypto.randomUUID()}@example.test`
     const auth = getAuth()
-    const signup = await auth.api.signUpEmail({ body: { name: 'New player', email, password: 'original-password-123', callbackURL: '/rooms' } })
+    const invitation = '/join?code=ABCDEFGH'
+    const signup = await auth.api.signUpEmail({ body: { name: 'New player', email, password: 'original-password-123', callbackURL: invitation } })
     trackTestUser(signup.user.id)
     expect(signup.user.emailVerified).toBe(false)
-    await expect(auth.api.signInEmail({ body: { email, password: 'original-password-123' } })).rejects.toMatchObject({ statusCode: 403 })
+    expect(new URL(emails.at(-1)!.props.url).searchParams.get('callbackURL')).toBe(invitation)
+    await expect(auth.api.signInEmail({ body: { email, password: 'original-password-123', callbackURL: invitation } })).rejects.toMatchObject({ statusCode: 403 })
     expect(emails.at(-1)).toMatchObject({ to: email, template: 'email-verification', props: { name: 'New player' } })
+    expect(new URL(emails.at(-1)!.props.url).searchParams.get('callbackURL')).toBe(invitation)
     const token = new URL(emails.at(-1)!.props.url).searchParams.get('token')!
-    await auth.api.verifyEmail({ query: { token } })
-    const login = await auth.api.signInEmail({ body: { email, password: 'original-password-123' } })
+    const verified = await auth.api.verifyEmail({ query: { token, callbackURL: invitation }, asResponse: true })
+    expect(verified.headers.get('location')).toBe(invitation)
+    const login = await auth.api.signInEmail({ body: { email, password: 'original-password-123', callbackURL: invitation } })
     expect(login.user.emailVerified).toBe(true)
+    expect(login).toMatchObject({ redirect: true, url: invitation })
     await auth.api.requestPasswordReset({ body: { email, redirectTo: '/reset-password' } })
     expect(emails.at(-1)).toMatchObject({ to: email, template: 'password-reset', props: { name: 'New player' } })
     const resetUrl = new URL(emails.at(-1)!.props.url)
