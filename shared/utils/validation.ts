@@ -8,7 +8,8 @@ export const playerSchema = z.object({
 })
 export const settingsSchema = z.discriminatedUnion('mode', [
   z.object({ mode: z.literal('x01'), startScore: z.union([z.literal(301), z.literal(501)]), doubleIn: z.boolean(), doubleOut: z.boolean(), legsTarget: z.number().int().min(1).max(11) }),
-  z.object({ mode: z.literal('atc'), fastForward: z.boolean() })
+  z.object({ mode: z.literal('atc'), fastForward: z.boolean() }),
+  z.object({ mode: z.literal('cricket'), legsTarget: z.number().int().min(1).max(11) })
 ])
 export const dartSchema = z.object({
   segment: z.union([z.literal(0), z.number().int().min(1).max(20), z.literal(25)]),

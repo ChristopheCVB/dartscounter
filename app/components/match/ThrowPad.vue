@@ -56,6 +56,7 @@ const props = defineProps<{
   disabled?: boolean
   undoDisabled?: boolean
   showNumeric?: boolean
+  cricket?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -69,7 +70,8 @@ const emit = defineEmits<{
   dart: [payload: { segment: Segment, multiplier: Multiplier }]
 }>()
 
-const segments: Segment[] = [20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
+const allSegments: Segment[] = [20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
+const segments = computed(() => props.cricket ? allSegments.filter(segment => segment >= 15) : allSegments)
 const inputMode = defineModel<'quick' | 'target'>('inputMode', { default: 'target' })
 const inputMethods = [
   { label: 'Interactive Target', value: 'target', slot: 'target' },

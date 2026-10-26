@@ -12,6 +12,24 @@ describe('player recommendations', () => {
   let wrapper: VueWrapper
   afterEach(() => wrapper?.unmount())
 
+  it('shows shared Cricket marks, points, legs, and the current player with accessible labels', async () => {
+    const settings = { mode: 'cricket', legsTarget: 3 } as const
+    const engine = useMatchState()
+    const match = engine.createMatch(settings, seeds)
+    engine.recordDart(match, { segment: 20, multiplier: 3 })
+    engine.recordDart(match, { segment: 20, multiplier: 2 })
+    match.players[0]!.legsWon = 1
+    wrapper = await mountSuspended(Scoreboard, { props: { players: match.players, activeIndex: 0, settings, dartsUsed: 2, status: 'in_progress' } })
+    expect(wrapper.get('[aria-label="Cricket scoreboard"]').text()).toContain('40')
+    expect(wrapper.get('[aria-label="Alice, 20: 3 of 3 marks, closed"]').text()).toBe('⊗')
+    expect(wrapper.get('[aria-label="Bob, 20: 0 of 3 marks"]').text()).toBe('—')
+    expect(wrapper.get('th[aria-current="true"]').text()).toContain('Alice')
+    expect(wrapper.find('article').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('Avg')
+    await wrapper.setProps({ activeIndex: 1 })
+    expect(wrapper.get('th[aria-current="true"]').text()).toContain('Bob')
+  })
+
   it('gives waiting players a full turn and updates advice after scoring, undo, and turn changes', async () => {
     const match = useMatchState().createMatch(settings, seeds)
     match.players[0]!.score = 100

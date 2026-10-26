@@ -9,6 +9,16 @@ describe('throw pad input methods', () => {
   afterEach(() => wrapper?.unmount())
   const props = { multiplier: 2 as const, numericBuffer: '20', playerColor: '#f05a28', showNumeric: true }
 
+  it('limits Cricket quick segments to 15–20 and keeps Bulls and Miss', async () => {
+    wrapper = await mountSuspended(ThrowPad, { props: { ...props, cricket: true, showNumeric: false, inputMode: 'quick' } })
+    const buttons = wrapper.findAll('button').map(button => button.text())
+    for (const label of ['20', '19', '18', '17', '16', '15', 'Bull 25', 'Bull 50', 'Miss']) expect(buttons).toContain(label)
+    expect(buttons).not.toContain('14')
+    expect(wrapper.find('input').exists()).toBe(false)
+    await wrapper.findAll('button').find(button => button.text() === '19')!.trigger('click')
+    expect(wrapper.emitted('segment')).toEqual([[19]])
+  })
+
   it('starts on the target without quick controls and records exact board hits', async () => {
     wrapper = await mountSuspended(ThrowPad, { props, slots: { turn: '<p>Turn feedback</p>' } })
     expect(wrapper.get('[role="tab"][aria-selected="true"]').text()).toBe('Interactive Target')

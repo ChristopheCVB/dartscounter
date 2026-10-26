@@ -6,7 +6,7 @@ This specification supersedes the navigation and page-layout descriptions in spe
 
 - Dark slate interface with orange accents, consistent headings, aligned form sections, and touch-friendly controls. Use spacing and dividers instead of nested cards.
 - Main navigation: Play, Players, History, Settings. Desktop uses header links; phones use a header menu.
-- The match scoring layout, controls, keyboard shortcuts, and recap are preserved. Its shared header, background, and base theme follow the app.
+- The match scoring layout, controls, keyboard shortcuts, and recap are preserved. Cricket replaces player cards with a shared scrollable marks table and shows Cricket-specific input and statistics (specification 10). Its shared header, background, and base theme follow the app.
 - The authenticated session is fetched during SSR using request cookies and hydrated into the client. Home and the header share this session so signed-in visitors do not see a signed-out flash. Account data is loaded with the same request context.
 - Pages define English titles and descriptions. Browser titles use `Page - DartsCounter`; Open Graph and Twitter tags share the page title and description. Room and match metadata stays generic, without player names, scores, or invite codes. Only Play permits search indexing; other pages use `noindex, nofollow`.
 
@@ -22,7 +22,7 @@ This specification supersedes the navigation and page-layout descriptions in spe
 - `/match/[id]`: provide Leave room and explain absence consequences. After completion, Play again is the primary next action, including in the recap, and returns to the same lobby for readiness confirmation. Unavailable room/match links offer Play and History; finished results remain in History after room deletion.
 - `/players`: player creation and name/color editing through dialogs, a mode switch for lifetime statistics, a desktop table, and phone rows with expandable details. Name and color updates use one existing player API transaction. The account player cannot be removed; historical snapshots are preserved.
 - `/history`: compact results with expandable full statistics; use stacked statistics on phones. The empty state links to Play to create or return to a room. “Hide from my history” affects only the current account and its aggregate statistics.
-- `/settings`: match defaults and audio preferences with one explicit save. Language/voice remain browser-local, with preview and speech feedback.
+- `/settings`: X01 and Cricket match defaults and audio preferences with one explicit save. Language/voice remain browser-local, with preview and speech feedback.
 - Authentication pages: narrow forms, contextual links, visible success/error states, and existing CAPTCHA, verification, password-reset, and validation behavior.
 
 Removal actions live in overflow menus and require confirmation: hiding history, removing saved guests or room members, clearing guests, and abandoning a match. Invite-code rotation also confirms that the old code will stop working.

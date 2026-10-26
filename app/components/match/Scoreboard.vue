@@ -1,14 +1,17 @@
 <template>
   <section aria-label="Players" class="grid min-w-0 gap-2">
-    <MatchPlayerCard
-      v-for="(player, idx) in players"
-      :key="player.id"
-      :player="player"
-      :active="idx === activeIndex"
-      :settings="settings"
-      :darts-left="idx === activeIndex ? Math.max(0, 3 - dartsUsed) : 3"
-      :show-recommendation="status === 'in_progress'"
-    />
+    <MatchCricketScoreboard v-if="settings.mode === 'cricket'" :players="players" :active-index="activeIndex" />
+    <template v-else>
+      <MatchPlayerCard
+        v-for="(player, idx) in players"
+        :key="player.id"
+        :player="player"
+        :active="idx === activeIndex"
+        :settings="settings"
+        :darts-left="idx === activeIndex ? Math.max(0, 3 - dartsUsed) : 3"
+        :show-recommendation="status === 'in_progress'"
+      />
+    </template>
   </section>
 </template>
 

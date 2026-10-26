@@ -4,8 +4,9 @@
       <MatchThrowPad
         v-model:input-mode="inputMode"
         :show-numeric="match.settings.mode === 'x01'"
+        :cricket="match.settings.mode === 'cricket'"
         :multiplier="matchStore.selectedMultiplier"
-        :numeric-buffer="match.settings.mode === 'atc' ? '' : matchStore.numericBuffer"
+        :numeric-buffer="match.settings.mode === 'x01' ? matchStore.numericBuffer : ''"
         :player-color="currentPlayerColor"
         :disabled="!matchStore.canScore"
         :undo-disabled="!matchStore.canUndo"
@@ -130,6 +131,9 @@
                   <template v-if="lastSummary?.gameMode === 'atc'">
                     {{ row.dartsThrown }} darts · {{ row.hitRate !== undefined ? (row.hitRate * 100).toFixed(0) : '0' }}% hit
                   </template>
+                  <template v-else-if="lastSummary?.gameMode === 'cricket'">
+                    {{ row.legsWon }} legs · {{ row.scoredPoints }} points · {{ (row.marksPerRound ?? 0).toFixed(2) }} MPR
+                  </template>
                   <template v-else>
                     {{ row.legsWon }} legs · {{ row.average.toFixed(2) }} avg
                   </template>
@@ -226,6 +230,9 @@ const recapRows = computed(() => {
   }
 
   return [...lastSummary.value.players].sort((a, b) => {
+    if (lastSummary.value?.gameMode === 'cricket') {
+      return b.legsWon - a.legsWon || (b.marksPerRound ?? 0) - (a.marksPerRound ?? 0) || b.scoredPoints - a.scoredPoints || a.name.localeCompare(b.name)
+    }
     if (b.legsWon !== a.legsWon) {
       return b.legsWon - a.legsWon
     }

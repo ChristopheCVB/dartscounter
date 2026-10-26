@@ -1,7 +1,9 @@
 export type Multiplier = 1 | 2 | 3
 export type Segment = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 25
 
-export type GameMode = 'x01' | 'atc'
+export type GameMode = 'x01' | 'atc' | 'cricket'
+export type CricketTarget = 15 | 16 | 17 | 18 | 19 | 20 | 25
+export type CricketMarks = Record<CricketTarget, 0 | 1 | 2 | 3>
 
 export interface DartInput {
   segment: Segment
@@ -15,6 +17,7 @@ export interface ThrowEvent extends DartInput {
   dartIndex: number
   points: number
   scoredPoints: number
+  scoredMarks?: number
   scoreBefore: number
   scoreAfter: number
   openedBefore: boolean
@@ -37,7 +40,12 @@ export interface AtcSettings {
   fastForward: boolean
 }
 
-export type GameSettings = X01Settings | AtcSettings
+export interface CricketSettings {
+  mode: 'cricket'
+  legsTarget: number
+}
+
+export type GameSettings = X01Settings | AtcSettings | CricketSettings
 
 export interface PlayerIdentity {
   id: string
@@ -53,6 +61,7 @@ export interface PlayerStats {
   checkoutAttempts: number
   checkoutsMade: number
   scoredPoints: number
+  scoredMarks?: number
   firstNinePoints: number
   firstNineDarts: number
 }
@@ -62,6 +71,7 @@ export interface MatchPlayer extends Player {
   hasOpened: boolean
   legsWon: number
   atcTarget?: number
+  cricketMarks?: CricketMarks
   stats: PlayerStats
 }
 
@@ -99,6 +109,8 @@ export interface PlayerSummary {
   dartsThrown: number
   busts: number
   hitRate?: number
+  scoredMarks?: number
+  marksPerRound?: number
 }
 
 export interface MatchSummary {

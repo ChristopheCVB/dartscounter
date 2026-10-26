@@ -6,12 +6,14 @@ import { apiError } from '~/utils/apiError'
 export const useSettingsStore = defineStore('settings', () => {
   const settings = ref({ ...defaultPreferences.settings })
   const atcSettings = ref({ ...defaultPreferences.atcSettings })
+  const cricketSettings = ref({ ...defaultPreferences.cricketSettings })
   const soundEnabled = ref(true)
   const announcementLanguage = useLocalStorage('dartcounter:v1:announcement-language', '', { initOnMounted: true })
   const announcementVoice = useLocalStorage('dartcounter:v1:announcement-voice', '', { initOnMounted: true })
   function hydrate(data: Preferences) {
     settings.value = data.settings
     atcSettings.value = data.atcSettings
+    cricketSettings.value = data.cricketSettings ?? { ...defaultPreferences.cricketSettings }
     soundEnabled.value = data.soundEnabled
   }
   function reset() { hydrate(structuredClone(defaultPreferences)) }
@@ -25,13 +27,13 @@ export const useSettingsStore = defineStore('settings', () => {
     }
   }
   function update(patch: Partial<Omit<X01Settings, 'mode'>>) {
-    return save({ settings: { ...settings.value, ...patch }, atcSettings: atcSettings.value, soundEnabled: soundEnabled.value })
+    return save({ settings: { ...settings.value, ...patch }, atcSettings: atcSettings.value, cricketSettings: cricketSettings.value, soundEnabled: soundEnabled.value })
   }
   function updateAtcSettings(patch: Partial<Omit<AtcSettings, 'mode'>>) {
-    return save({ settings: settings.value, atcSettings: { ...atcSettings.value, ...patch }, soundEnabled: soundEnabled.value })
+    return save({ settings: settings.value, atcSettings: { ...atcSettings.value, ...patch }, cricketSettings: cricketSettings.value, soundEnabled: soundEnabled.value })
   }
   function updateSoundEnabled(value: boolean) {
-    return save({ settings: settings.value, atcSettings: atcSettings.value, soundEnabled: value })
+    return save({ settings: settings.value, atcSettings: atcSettings.value, cricketSettings: cricketSettings.value, soundEnabled: value })
   }
-  return { settings, atcSettings, soundEnabled, announcementLanguage, announcementVoice, hydrate, reset, save, update, updateAtcSettings, updateSoundEnabled }
+  return { settings, atcSettings, cricketSettings, soundEnabled, announcementLanguage, announcementVoice, hydrate, reset, save, update, updateAtcSettings, updateSoundEnabled }
 })

@@ -1,7 +1,8 @@
 import type { AtcSettings, DartInput, GameSettings, Match, MatchPlayer, MatchSummary, Player, PlayerIdentity, PlayerSummary, ThrowEvent, X01Settings } from '../types/darts'
 import { fallbackPlayerColor } from './playerColors'
 import { applyAtcDart } from './atcEngine'
-import { applyDart, isValidSegmentMultiplier } from './scoringEngine'
+import { CRICKET_TARGETS, applyCricketDart, createCricketMarks } from './cricketEngine'
+import { applyDart, getThrowPoints, isValidSegmentMultiplier } from './scoringEngine'
 
 type PlayerSeed = PlayerIdentity
 
@@ -17,26 +18,16 @@ function createStats() {
   }
 }
 
-function buildPlayers(players: Player[], settings: X01Settings): MatchPlayer[] {
+function buildPlayers(players: Player[], settings: GameSettings): MatchPlayer[] {
   return players.map((player, idx) => ({
     ...player,
     color: player.color || fallbackPlayerColor(idx),
-    score: settings.startScore,
+    score: settings.mode === 'x01' ? settings.startScore : 0,
     legsWon: 0,
-    hasOpened: !settings.doubleIn,
-    stats: createStats()
-  }))
-}
-
-function buildAtcPlayers(players: Player[]): MatchPlayer[] {
-  return players.map((player, idx) => ({
-    ...player,
-    color: player.color || fallbackPlayerColor(idx),
-    score: 0,
-    hasOpened: true,
-    legsWon: 0,
-    atcTarget: 1,
-    stats: createStats()
+    hasOpened: settings.mode !== 'x01' || !settings.doubleIn,
+    ...(settings.mode === 'atc' ? { atcTarget: 1 } : {}),
+    ...(settings.mode === 'cricket' ? { cricketMarks: createCricketMarks() } : {}),
+    stats: { ...createStats(), ...(settings.mode === 'cricket' ? { scoredMarks: 0 } : {}) }
   }))
 }
 
@@ -54,6 +45,7 @@ function getPlayerAt(match: Match, index: number): MatchPlayer {
 
 function computeSummary(match: Match): MatchSummary {
   const isAtc = match.settings.mode === 'atc'
+  const isCricket = match.settings.mode === 'cricket'
 
   const players: PlayerSummary[] = match.players.map((player) => {
     if (isAtc) {
@@ -97,7 +89,7 @@ function computeSummary(match: Match): MatchSummary {
       name: player.name,
       color: player.color,
       legsWon: player.legsWon,
-      average: round(average),
+      average: isCricket ? 0 : round(average),
       scoredPoints: player.stats.scoredPoints,
       firstNineAverage: round(firstNineAverage),
       firstNinePoints: player.stats.firstNinePoints,
@@ -106,7 +98,11 @@ function computeSummary(match: Match): MatchSummary {
       checkoutsMade: player.stats.checkoutsMade,
       checkoutPercentage: round(checkoutPercentage),
       dartsThrown: player.stats.dartsThrown,
-      busts: player.stats.busts
+      busts: player.stats.busts,
+      ...(isCricket ? {
+        scoredMarks: player.stats.scoredMarks ?? 0,
+        marksPerRound: player.stats.dartsThrown ? round((player.stats.scoredMarks ?? 0) / player.stats.dartsThrown * 3) : 0
+      } : {})
     }
   })
 
@@ -115,7 +111,7 @@ function computeSummary(match: Match): MatchSummary {
   const atcSettings = isAtc ? (match.settings as AtcSettings) : null
   const modeLabel = isAtc
     ? (atcSettings!.fastForward ? 'Around the Clock (Fast)' : 'Around the Clock')
-    : `X01 ${(match.settings as X01Settings).startScore}`
+    : isCricket ? 'Cricket' : `X01 ${(match.settings as X01Settings).startScore}`
 
   return {
     id: crypto.randomUUID(),
@@ -131,10 +127,18 @@ function computeSummary(match: Match): MatchSummary {
 }
 
 function resetForNextLeg(match: Match) {
-  const settings = match.settings as X01Settings
+  const settings = match.settings
   for (const player of match.players) {
-    player.score = settings.startScore
-    player.hasOpened = !settings.doubleIn
+    if (settings.mode === 'x01') {
+      player.score = settings.startScore
+      player.hasOpened = !settings.doubleIn
+    } else if (settings.mode === 'cricket') {
+      player.score = 0
+      player.cricketMarks = createCricketMarks()
+    }
+  }
+  if (settings.mode === 'cricket') {
+    match.currentPlayerIndex = match.players.reduce((total, player) => total + player.legsWon, 0) % match.players.length
   }
   match.currentTurnDarts = []
   match.currentTurnIndex = 0
@@ -155,9 +159,7 @@ export function useMatchState() {
       throw new Error('Cannot create match without players.')
     }
 
-    const builtPlayers = settings.mode === 'atc'
-      ? buildAtcPlayers(players)
-      : buildPlayers(players, settings)
+    const builtPlayers = buildPlayers(players, settings)
 
     const firstPlayer = builtPlayers[0]
 
@@ -230,6 +232,54 @@ export function useMatchState() {
     return { updated: match, summary: null }
   }
 
+  const recordDartCricket = (match: Match, input: DartInput): { updated: Match, summary: MatchSummary | null } => {
+    const player = getPlayerAt(match, match.currentPlayerIndex)
+    const opponents = match.players.filter(opponent => opponent.id !== player.id)
+    const result = applyCricketDart(player.cricketMarks!, opponents.map(opponent => opponent.cricketMarks!), input)
+    const scoreBefore = player.score
+    player.cricketMarks = result.nextMarks
+    player.score += result.scoredPoints
+    player.stats.dartsThrown += 1
+    player.stats.scoredPoints += result.scoredPoints
+    player.stats.scoredMarks = (player.stats.scoredMarks ?? 0) + result.scoredMarks
+
+    const isWin = CRICKET_TARGETS.every(target => result.nextMarks[target] === 3)
+      && opponents.every(opponent => player.score >= opponent.score)
+    const event: ThrowEvent = {
+      ...input,
+      id: crypto.randomUUID(),
+      playerId: player.id,
+      turnIndex: match.currentTurnIndex,
+      dartIndex: match.currentTurnDarts.length + 1,
+      points: getThrowPoints(input.segment, input.multiplier),
+      scoredPoints: result.scoredPoints,
+      scoredMarks: result.scoredMarks,
+      scoreBefore,
+      scoreAfter: player.score,
+      openedBefore: true,
+      openedAfter: true,
+      isBust: false,
+      isCheckout: isWin,
+      timestamp: Date.now()
+    }
+    match.currentTurnDarts.push(event)
+    match.throws.push(event)
+
+    if (isWin && match.settings.mode === 'cricket') {
+      player.legsWon += 1
+      if (player.legsWon >= match.settings.legsTarget) {
+        match.status = 'finished'
+        match.finishedAt = Date.now()
+        match.winnerId = player.id
+        return { updated: match, summary: computeSummary(match) }
+      }
+      resetForNextLeg(match)
+    } else if (match.currentTurnDarts.length >= 3) {
+      advanceTurn(match)
+    }
+    return { updated: match, summary: null }
+  }
+
   const recordDart = (match: Match, input: DartInput): { updated: Match, summary: MatchSummary | null } => {
     if (!isValidSegmentMultiplier(input.segment, input.multiplier) || match.status !== 'in_progress') {
       return { updated: match, summary: null }
@@ -237,6 +287,9 @@ export function useMatchState() {
 
     if (match.settings.mode === 'atc') {
       return recordDartAtc(match, input)
+    }
+    if (match.settings.mode === 'cricket') {
+      return recordDartCricket(match, input)
     }
 
     const player = getPlayerAt(match, match.currentPlayerIndex)

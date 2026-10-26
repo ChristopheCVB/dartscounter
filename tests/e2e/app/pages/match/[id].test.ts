@@ -6,6 +6,7 @@ import { cleanupDatabase, testEnvironment, testPool, testUser } from '../../../.
 import type { AccountData, RoomView } from '../../../../../shared/types/rooms'
 import { defaultPreferences } from '../../../../../shared/types/rooms'
 import type { RoomAction } from '../../../../../shared/utils/validation'
+import { CRICKET_TARGETS } from '../../../../../shared/utils/cricketEngine'
 
 describe('local matches', { timeout: 60_000 }, async () => {
   await setup({
@@ -293,19 +294,22 @@ describe('local matches', { timeout: 60_000 }, async () => {
     return { page: target, user }
   }
 
-  async function startLobbyMatch(mode: 'x01' | 'atc' = 'x01') {
+  async function startLobbyMatch(mode: 'x01' | 'atc' | 'cricket' = 'x01', guests = ['Bob']) {
     await page.goto(url('/'), { waitUntil: 'hydration' })
     await page.getByRole('button', { name: 'Create room', exact: true }).click()
     await page.waitForURL(/\/room\/[^/]+$/)
     await expect.poll(() => page.getByRole('button', { name: 'Add guest', exact: true }).isEnabled()).toBe(true)
-    await page.getByPlaceholder('Guest name', { exact: true }).fill('Bob')
-    await page.getByRole('button', { name: 'Add guest', exact: true }).click()
-    await expect.poll(() => page.getByRole('button', { name: 'Ready', exact: true }).isEnabled()).toBe(true)
-    if (mode === 'atc') {
+    for (const guest of guests) {
+      await page.getByPlaceholder('Guest name', { exact: true }).fill(guest)
+      await page.getByRole('button', { name: 'Add guest', exact: true }).click()
+      await expect.poll(() => page.getByRole('button', { name: 'Ready', exact: true }).isEnabled()).toBe(true)
+    }
+    if (mode !== 'x01') {
       await page.getByRole('combobox', { name: 'Game mode', exact: true }).click()
-      await page.getByRole('option', { name: 'Around the Clock', exact: true }).click()
+      const label = mode === 'cricket' ? 'Cricket' : 'Around the Clock'
+      await page.getByRole('option', { name: label, exact: true }).click()
       await page.getByRole('button', { name: 'Save rules', exact: true }).click()
-      await expect.poll(() => page.getByRole('region', { name: 'Match rules' }).textContent()).toContain('Around the Clock')
+      await expect.poll(() => page.getByRole('region', { name: 'Match rules' }).textContent()).toContain(label)
     }
     await page.getByRole('button', { name: 'Ready', exact: true }).click()
     await expect.poll(() => page.getByRole('button', { name: 'Start match', exact: true }).isEnabled()).toBe(true)
@@ -660,6 +664,109 @@ describe('local matches', { timeout: 60_000 }, async () => {
     await expect.poll(() => activeScore().textContent()).toBe('Target: 2')
     await throwDart(2)
     await expect.poll(() => scores().allTextContents()).toEqual(['Target: 3', 'Target: 1'])
+  })
+
+  it('plays multi-leg Cricket with saved defaults, live marks, undo, and mode-specific history', { timeout: 120_000 }, async () => {
+    page = (await authenticatedPage('Alice')).page
+    const origin = new URL(url('/')).origin
+    await page.goto(url('/settings'), { waitUntil: 'hydration' })
+    await expect.poll(() => page.getByRole('spinbutton', { name: 'Default Cricket legs to win', exact: true }).inputValue()).toBe('1')
+    await page.getByRole('spinbutton', { name: 'Default Cricket legs to win', exact: true }).fill('2')
+    await page.getByRole('button', { name: 'Save defaults', exact: true }).click()
+    const account = async () => (await (await page.request.get(url('/api/account'))).json()) as AccountData
+    await expect.poll(async () => (await account()).cricketSettings.legsTarget).toBe(2)
+    const { settings, atcSettings, soundEnabled } = await account()
+    const legacySave = await page.request.put(url('/api/preferences'), { data: { settings, atcSettings, soundEnabled }, headers: { Origin: origin } })
+    expect((await legacySave.json()).cricketSettings).toEqual({ mode: 'cricket', legsTarget: 2 })
+    const invalidSave = await page.request.put(url('/api/preferences'), { data: { settings, atcSettings, soundEnabled, cricketSettings: { mode: 'cricket', legsTarget: 12 } }, headers: { Origin: origin } })
+    expect(invalidSave.status()).toBe(400)
+
+    await startLobbyMatch('cricket', ['Bob', 'Charlie', 'Dana'])
+    let room = (await account()).currentRoom!
+    expect(room.settings).toEqual({ mode: 'cricket', legsTarget: 2 })
+    const first = room.match!.players[0]!
+    const board = page.getByRole('region', { name: 'Cricket scoreboard', exact: true })
+    await page.getByRole('tab', { name: 'Quick Input', exact: true }).click()
+    expect(await page.getByRole('button', { name: '14', exact: true }).count()).toBe(0)
+    expect(await page.getByText('Numeric throw (0-60)', { exact: true }).count()).toBe(0)
+    await page.getByRole('button', { name: 'Treble', exact: true }).click()
+    await throwDart(20)
+    await expect.poll(() => board.getByLabel(`${first.name}, 20: 3 of 3 marks, closed`, { exact: true }).textContent()).toBe('⊗')
+    await page.getByRole('button', { name: 'Single', exact: true }).click()
+    await throwDart(20)
+    await expect.poll(() => page.getByRole('region', { name: 'Current turn', exact: true }).textContent()).toContain('+20 pts')
+    await page.getByRole('button', { name: 'Undo', exact: true }).click()
+    await expect.poll(async () => (await account()).currentRoom!.match!.players[0]!.score).toBe(0)
+    await page.goto(page.url(), { waitUntil: 'hydration' })
+    await board.waitFor()
+    await expect.poll(() => board.getByLabel(`${first.name}, 20: 3 of 3 marks, closed`, { exact: true }).textContent()).toBe('⊗')
+    for (const width of [390, 1280]) {
+      await page.setViewportSize({ width, height: 900 })
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+      expect(await board.getByRole('table').evaluate(table => table.scrollWidth > table.parentElement!.clientWidth)).toBe(true)
+    }
+
+    const spectator = (await authenticatedPage('Viewer')).page
+    try {
+      room = (await account()).currentRoom!
+      const joined = await spectator.request.post(url('/api/rooms/join'), { data: { code: room.code }, headers: { Origin: origin } })
+      expect(joined.status()).toBe(200)
+      await spectator.goto(page.url(), { waitUntil: 'hydration' })
+      const watchingBoard = spectator.getByRole('region', { name: 'Cricket scoreboard', exact: true })
+      await watchingBoard.waitFor()
+      expect(await spectator.getByRole('button', { name: 'Miss', exact: true }).isDisabled()).toBe(true)
+      room = (await account()).currentRoom!
+      let checkedLegUndo = false
+      for (let count = 0; count < 100 && room.match!.status === 'in_progress'; count++) {
+        const player = room.match!.players[room.match!.currentPlayerIndex]!
+        const target = CRICKET_TARGETS.find(target => player.cricketMarks![target] < 3)!
+        const action: RoomAction = { type: 'dart', dart: player.id === first.id ? { segment: target, multiplier: target === 25 ? 2 : 3 } : { segment: 0, multiplier: 1 } }
+        const response = await page.request.post(url(`/api/rooms/${room.id}/actions`), { data: { requestId: crypto.randomUUID(), expectedRevision: room.revision, action }, headers: { Origin: origin } })
+        expect(response.status()).toBe(200)
+        room = await response.json() as RoomView
+        if (count === 0) await expect.poll(() => watchingBoard.getByLabel(`${first.name}, 19: 3 of 3 marks, closed`, { exact: true }).textContent()).toBe('⊗')
+        if (!checkedLegUndo && room.match!.players[0]!.legsWon === 1) {
+          checkedLegUndo = true
+          expect(room.match!.currentPlayerIndex).toBe(1)
+          expect(room.match!.players.every(player => CRICKET_TARGETS.every(target => player.cricketMarks![target] === 0))).toBe(true)
+          const undone = await page.request.post(url(`/api/rooms/${room.id}/actions`), { data: { requestId: crypto.randomUUID(), expectedRevision: room.revision, action: { type: 'undo' } }, headers: { Origin: origin } })
+          room = await undone.json() as RoomView
+          expect(room.match!.players[0]!.legsWon).toBe(0)
+          expect(room.match!.players[0]!.cricketMarks![25]).toBe(2)
+        }
+      }
+      expect(checkedLegUndo).toBe(true)
+      expect(room.match!.status).toBe('finished')
+      const winnerStats = room.summary!.players[0]!
+      expect(winnerStats).toMatchObject({ legsWon: 2, dartsThrown: 16, scoredMarks: 44, scoredPoints: 50, marksPerRound: 8.25 })
+      await expect.poll(() => spectator.getByRole('dialog').textContent()).toContain('8.25 MPR')
+      const recap = page.getByRole('dialog')
+      await recap.waitFor()
+      expect(await recap.textContent()).toContain('8.25 MPR')
+      await recap.getByRole('button', { name: 'Close', exact: true }).last().click()
+      await expect.poll(() => page.getByRole('button', { name: 'Undo', exact: true }).isEnabled()).toBe(true)
+      await page.getByRole('button', { name: 'Undo', exact: true }).click()
+      await expect.poll(() => page.getByRole('dialog').count()).toBe(0)
+      const beforeWin = (await account()).currentRoom!
+      const wonAgain = await page.request.post(url(`/api/rooms/${beforeWin.id}/actions`), { data: { requestId: crypto.randomUUID(), expectedRevision: beforeWin.revision, action: { type: 'dart', dart: { segment: 25, multiplier: 2 } } }, headers: { Origin: origin } })
+      expect(wonAgain.status()).toBe(200)
+      await page.goto(url('/history'), { waitUntil: 'hydration' })
+      await page.locator('summary').click()
+      expect(await page.getByRole('columnheader', { name: 'MPR', exact: true }).count()).toBe(1)
+      expect(await page.getByRole('columnheader', { name: 'Checkout', exact: true }).count()).toBe(0)
+      await page.setViewportSize({ width: 390, height: 900 })
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+      await page.setViewportSize({ width: 1280, height: 900 })
+      await page.goto(url('/players'), { waitUntil: 'hydration' })
+      await page.getByRole('button', { name: 'Cricket', exact: true }).click()
+      await expect.poll(() => page.getByRole('columnheader', { name: 'MPR', exact: true }).count()).toBe(1)
+      const stats = await (await page.request.get(url('/api/stats?mode=cricket'))).json()
+      expect(stats.find((player: { id: string }) => player.id === first.id)).toMatchObject({ matches: 1, wins: 1, marksPerRound: 8.25 })
+      await page.request.put(url('/api/preferences'), { data: { settings, atcSettings, soundEnabled, cricketSettings: { mode: 'cricket', legsTarget: 1 } }, headers: { Origin: origin } })
+      await page.goto(url(`/room/${room.id}`), { waitUntil: 'hydration' })
+      await expect.poll(() => page.getByRole('spinbutton', { name: 'Cricket legs to win', exact: true }).inputValue()).toBe('2')
+      expect(await page.getByText('Unsaved rule changes', { exact: true }).count()).toBe(0)
+    } finally { await spectator.context().close() }
   })
 
   it('shows a checkout recap and persists completed match history', async () => {

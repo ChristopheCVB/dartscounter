@@ -13,6 +13,7 @@ describe('match rules summary', () => {
     { settings: { mode: 'x01', startScore: 301, doubleIn: true, doubleOut: false, legsTarget: 3 }, labels: ['X01 · 301', 'Double in', 'Straight out', 'First to 3 legs'] },
     { settings: { mode: 'atc', fastForward: false }, labels: ['Around the Clock', '1–20, then Bull', 'Fast Forward off'] },
     { settings: { mode: 'atc', fastForward: true }, labels: ['Around the Clock', '1–20, then Bull', 'Fast Forward on'] },
+    { settings: { mode: 'cricket', legsTarget: 3 }, labels: ['Cricket', '15–20 and Bull', 'Bull 25/50', 'First to 3 legs', 'Rotating starter', 'finish level or ahead'] },
   ])('displays all saved options for $settings', async ({ settings, labels }) => {
     wrapper = await mountSuspended(RulesSummary, { props: { settings } })
     for (const label of labels) expect(wrapper.text()).toContain(label)

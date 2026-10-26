@@ -1,6 +1,6 @@
 # DartsCounter
 
-A server-backed darts scoring app with temporary multiplayer rooms, built with Nuxt. Bun is the runtime and package manager.
+A server-backed darts scoring app for X01, classic Cricket, and Around the Clock with temporary multiplayer rooms, built with Nuxt. Bun is the runtime and package manager.
 
 ## Setup
 

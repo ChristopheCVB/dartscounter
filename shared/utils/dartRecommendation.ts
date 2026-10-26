@@ -41,6 +41,8 @@ export function getDartRecommendation(
     return 'Turn: complete'
   }
 
+  if (settings.mode === 'cricket') return 'Close 15–20 and Bull; finish level or ahead on points'
+
   if (settings.mode === 'atc') {
     const target = player.atcTarget ?? 1
     if (target > 21) {

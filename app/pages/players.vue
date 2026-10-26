@@ -23,8 +23,8 @@
           <div class="flex min-w-0 items-center gap-3"><span class="size-3 shrink-0 rounded-full" :style="{ background: player.color }" /><span class="break-words font-semibold">{{ player.name }}</span><UBadge v-if="player.id === account.self?.id" color="neutral" variant="soft">You</UBadge></div>
           <UDropdownMenu :items="playerActions(player)"><UButton color="neutral" variant="ghost" icon="i-lucide-ellipsis" :aria-label="`Options for ${player.name}`" :disabled="pending" /></UDropdownMenu>
         </div>
-        <dl class="grid grid-cols-3 gap-3 text-sm"><div><dt class="text-muted">Matches</dt><dd class="mt-1 font-medium">{{ player.matches }}</dd></div><div><dt class="text-muted">Wins</dt><dd class="mt-1 font-medium">{{ player.wins }}</dd></div><div><dt class="text-muted">{{ mode === 'x01' ? '3-dart avg' : 'Hit rate' }}</dt><dd class="mt-1 font-medium">{{ player.average }}</dd></div></dl>
-        <details><summary class="cursor-pointer py-2 text-sm text-muted">More statistics</summary><dl class="mt-2 grid grid-cols-2 gap-3 text-sm"><div><dt class="text-muted">Total darts</dt><dd>{{ player.dartsThrown }}</dd></div><div><dt class="text-muted">Last played</dt><dd>{{ player.lastPlayed }}</dd></div></dl></details>
+        <dl class="grid grid-cols-3 gap-3 text-sm"><div><dt class="text-muted">Matches</dt><dd class="mt-1 font-medium">{{ player.matches }}</dd></div><div><dt class="text-muted">Wins</dt><dd class="mt-1 font-medium">{{ player.wins }}</dd></div><div><dt class="text-muted">{{ mode === 'x01' ? '3-dart avg' : mode === 'cricket' ? 'MPR' : 'Hit rate' }}</dt><dd class="mt-1 font-medium">{{ player.average }}</dd></div></dl>
+        <details><summary class="cursor-pointer py-2 text-sm text-muted">More statistics</summary><dl class="mt-2 grid grid-cols-2 gap-3 text-sm"><div v-if="mode === 'cricket'"><dt class="text-muted">Points</dt><dd>{{ player.points }}</dd></div><div><dt class="text-muted">Total darts</dt><dd>{{ player.dartsThrown }}</dd></div><div><dt class="text-muted">Last played</dt><dd>{{ player.lastPlayed }}</dd></div></dl></details>
       </div>
     </div>
     <p v-if="account.loaded && !rows.length" class="text-muted">Add a player to get started.</p>
@@ -60,20 +60,22 @@ const account = useAccountStore()
 const players = usePlayersStore()
 const toast = useToast()
 const mode = ref<GameMode>('x01')
-const modes = [{ label: 'X01', value: 'x01' as const }, { label: 'Around the Clock', value: 'atc' as const }]
+const modes = [{ label: 'X01', value: 'x01' as const }, { label: 'Around the Clock', value: 'atc' as const }, { label: 'Cricket', value: 'cricket' as const }]
 const { data: stats, error: statsError, status: statsStatus, refresh } = await useFetch<AggregatedPlayerStats[]>('/api/stats', { query: { mode } })
 const rows = computed(() => {
   const byId = new Map((stats.value ?? []).map(row => [row.id, row]))
   return players.recentPlayers.map(player => {
     const stat = byId.get(player.id)
     return { ...player, matches: stat?.matches ?? 0, wins: stat?.wins ?? 0, dartsThrown: stat?.dartsThrown ?? 0,
-      average: !stat?.matches ? '—' : mode.value === 'atc' ? `${((stat.hitRate ?? 0) * 100).toFixed(0)}%` : stat.average.toFixed(2),
+      points: stat?.scoredPoints ?? 0,
+      average: !stat?.matches ? '—' : mode.value === 'cricket' ? (stat.marksPerRound ?? 0).toFixed(2) : mode.value === 'atc' ? `${((stat.hitRate ?? 0) * 100).toFixed(0)}%` : stat.average.toFixed(2),
       lastPlayed: stat?.lastPlayed ? new Date(stat.lastPlayed).toLocaleDateString() : '—' }
   })
 })
 const columns = computed(() => [
   { accessorKey: 'name', header: 'Player' }, { accessorKey: 'matches', header: 'Matches' }, { accessorKey: 'wins', header: 'Wins' },
-  { accessorKey: 'average', header: mode.value === 'x01' ? '3-dart avg' : 'Hit rate' }, { accessorKey: 'dartsThrown', header: 'Total darts' },
+  { accessorKey: 'average', header: mode.value === 'x01' ? '3-dart avg' : mode.value === 'cricket' ? 'MPR' : 'Hit rate' }, { accessorKey: 'dartsThrown', header: 'Total darts' },
+  ...(mode.value === 'cricket' ? [{ accessorKey: 'points', header: 'Points' }] : []),
   { accessorKey: 'lastPlayed', header: 'Last played' }, { id: 'actions', header: 'Actions' }
 ])
 const hasGuests = computed(() => players.recentPlayers.some(player => player.id !== account.self?.id))
