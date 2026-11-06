@@ -40,7 +40,7 @@
     "consola": "^3.4.2",
     "drizzle-orm": "^0.45.4",
     "nuxt": "^4.6.3",
-    "nuxt-email-renderer": "^2.11.2",
+    "nuxt-email-renderer": "^3.0.0",
     "pg": "^8.23.1",
     "pinia": "^4.1.0",
     "resend": "^6.35.0",
