@@ -43,7 +43,7 @@
     "nuxt-email-renderer": "^2.11.2",
     "pg": "^8.23.1",
     "pinia": "^4.1.0",
-    "resend": "^6.35.0",
+    "resend": "^6.37.0",
     "tailwindcss": "^4.3.3",
     "zod": "^4.6.7"
   },
@@ -55,7 +55,7 @@
     "@vite-pwa/assets-generator": "^2.0.0",
     "@vue/test-utils": "^2.5.1",
     "drizzle-kit": "^0.31.11",
-    "eslint": "^10.13.0",
+    "eslint": "^10.14.0",
     "happy-dom": "^21.0.4",
     "playwright-core": "^1.64.1",
     "typescript": "^6.0.3",
